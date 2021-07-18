@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <complex>
+#include <complex>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -53,6 +55,8 @@ TYPE_ID_TRAIT(UINT64, UInt64Type)
 TYPE_ID_TRAIT(HALF_FLOAT, HalfFloatType)
 TYPE_ID_TRAIT(FLOAT, FloatType)
 TYPE_ID_TRAIT(DOUBLE, DoubleType)
+TYPE_ID_TRAIT(COMPLEX_FLOAT, ComplexFloatType)
+TYPE_ID_TRAIT(COMPLEX_DOUBLE, ComplexDoubleType)
 TYPE_ID_TRAIT(STRING, StringType)
 TYPE_ID_TRAIT(BINARY, BinaryType)
 TYPE_ID_TRAIT(LARGE_STRING, LargeStringType)
@@ -157,6 +161,8 @@ PRIMITIVE_TYPE_TRAITS_DEF(uint64_t, UInt64, uint64)
 PRIMITIVE_TYPE_TRAITS_DEF(int64_t, Int64, int64)
 PRIMITIVE_TYPE_TRAITS_DEF(float, Float, float32)
 PRIMITIVE_TYPE_TRAITS_DEF(double, Double, float64)
+PRIMITIVE_TYPE_TRAITS_DEF(std::complex<float>, ComplexFloat, complex64)
+PRIMITIVE_TYPE_TRAITS_DEF(std::complex<double>, ComplexDouble, complex128)
 
 #undef PRIMITIVE_TYPE_TRAITS_DEF
 #undef PRIMITIVE_TYPE_TRAITS_DEF_
@@ -528,6 +534,12 @@ using is_half_float_type = std::is_same<HalfFloatType, T>;
 
 template <typename T, typename R = void>
 using enable_if_half_float = enable_if_t<is_half_float_type<T>::value, R>;
+
+template <typename T>
+using is_complex_type = std::is_base_of<ComplexType, T>;
+
+template <typename T, typename R = void>
+using enable_if_complex = enable_if_t<is_complex_type<T>::value, R>;
 
 // Binary Types
 
