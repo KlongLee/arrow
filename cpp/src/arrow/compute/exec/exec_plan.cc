@@ -17,6 +17,9 @@
 
 #include "arrow/compute/exec/exec_plan.h"
 
+#include <iostream>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 

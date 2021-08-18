@@ -21,6 +21,7 @@
 #include "arrow/table.h"
 #include "arrow/util/bit_util.h"
 #include "arrow/util/bitmap_ops.h"
+#include "arrow/util/thread_pool.h"
 #include "arrow/util/ubsan.h"
 
 namespace arrow {
@@ -205,8 +206,8 @@ void BitUtil::bits_to_bytes(int64_t hardware_flags, const int num_bits,
   constexpr int unroll = 8;
   for (int i = num_processed / unroll; i < (num_bits + unroll - 1) / unroll; ++i) {
     uint8_t bits_next = bits[i];
-    // Clear the lowest bit and then make 8 copies of remaining 7 bits, each 7 bits apart
-    // from the previous.
+    // Clear the lowest bit and then make 8 copies of remaining 7 bits, each 7 bits
+    // apart from the previous.
     uint64_t unpacked = static_cast<uint64_t>(bits_next & 0xfe) *
                         ((1ULL << 7) | (1ULL << 14) | (1ULL << 21) | (1ULL << 28) |
                          (1ULL << 35) | (1ULL << 42) | (1ULL << 49));
@@ -305,6 +306,27 @@ Result<std::shared_ptr<Table>> TableFromExecBatches(
     batches.push_back(std::move(rb));
   }
   return Table::FromRecordBatches(schema, batches);
+}
+
+size_t ThreadIndexer::operator()() {
+  auto id = std::this_thread::get_id();
+
+  auto guard = mutex_.Lock();  // acquire the lock
+  const auto& id_index = *id_to_index_.emplace(id, id_to_index_.size()).first;
+
+  return Check(id_index.second);
+}
+
+size_t ThreadIndexer::Capacity() {
+  static size_t max_size = arrow::internal::ThreadPool::DefaultCapacity();
+  return max_size;
+}
+
+size_t ThreadIndexer::Check(size_t thread_index) {
+  DCHECK_LT(thread_index, Capacity())
+      << "thread index " << thread_index << " is out of range [0, " << Capacity() << ")";
+
+  return thread_index;
 }
 
 }  // namespace compute
