@@ -212,6 +212,7 @@ MAKE_VISIT_IN(int64_t);
 MAKE_VISIT_IN(float);
 MAKE_VISIT_IN(double);
 MAKE_VISIT_IN(std::string);
+MAKE_VISIT_IN(arrow::Date64Type);
 
 Status ExprDecomposer::Visit(const LiteralNode& node) {
   auto value_dex = std::make_shared<LiteralDex>(node.return_type(), node.holder());

@@ -118,6 +118,7 @@ class GANDIVA_EXPORT LLVMGenerator {
     void Visit(const InExprDexBase<double>& dex) override;
     void Visit(const InExprDexBase<gandiva::DecimalScalar128>& dex) override;
     void Visit(const InExprDexBase<std::string>& dex) override;
+    void Visit(const InExprDexBase<arrow::Date64Type>& dex) override;
     template <typename Type>
     void VisitInExpression(const InExprDexBase<Type>& dex);
 

@@ -66,6 +66,7 @@ class GANDIVA_EXPORT DexVisitor {
   virtual void Visit(const InExprDexBase<double>& dex) = 0;
   virtual void Visit(const InExprDexBase<gandiva::DecimalScalar128>& dex) = 0;
   virtual void Visit(const InExprDexBase<std::string>& dex) = 0;
+  virtual void Visit(const InExprDexBase<arrow::Date64Type>& dex) = 0;
 };
 
 /// Default implementation with only DCHECK().
@@ -92,6 +93,7 @@ class GANDIVA_EXPORT DexDefaultVisitor : public DexVisitor {
   VISIT_DCHECK(InExprDexBase<double>)
   VISIT_DCHECK(InExprDexBase<gandiva::DecimalScalar128>)
   VISIT_DCHECK(InExprDexBase<std::string>)
+  VISIT_DCHECK(InExprDexBase<arrow::Date64Type>)
 };
 
 }  // namespace gandiva
