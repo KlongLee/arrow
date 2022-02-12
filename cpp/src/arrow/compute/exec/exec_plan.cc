@@ -555,7 +555,6 @@ ExecFactoryRegistry* default_exec_factory_registry() {
   class DefaultRegistry : public ExecFactoryRegistry {
    public:
     DefaultRegistry() {
-      internal::RegisterSourceNode(this);
       internal::RegisterFilterNode(this);
       internal::RegisterProjectNode(this);
       internal::RegisterUnionNode(this);

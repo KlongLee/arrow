@@ -29,6 +29,7 @@
 #include "arrow/util/async_util.h"
 #include "arrow/util/checked_cast.h"
 #include "arrow/util/future.h"
+#include "arrow/util/init.h"
 #include "arrow/util/logging.h"
 #include "arrow/util/optional.h"
 #include "arrow/util/thread_pool.h"
@@ -174,14 +175,10 @@ struct SourceNode : ExecNode {
   AsyncGenerator<util::optional<ExecBatch>> generator_;
 };
 
+ARROW_INITIALIZER({
+  DCHECK_OK(default_exec_factory_registry()->AddFactory("source", SourceNode::Make));
+});
+
 }  // namespace
-
-namespace internal {
-
-void RegisterSourceNode(ExecFactoryRegistry* registry) {
-  DCHECK_OK(registry->AddFactory("source", SourceNode::Make));
-}
-
-}  // namespace internal
 }  // namespace compute
 }  // namespace arrow
