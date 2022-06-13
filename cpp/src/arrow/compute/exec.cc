@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -40,6 +41,7 @@
 #include "arrow/record_batch.h"
 #include "arrow/scalar.h"
 #include "arrow/status.h"
+#include "arrow/table.h"
 #include "arrow/type.h"
 #include "arrow/type_traits.h"
 #include "arrow/util/bit_util.h"
@@ -108,6 +110,109 @@ int64_t ExecBatch::TotalBufferSize() const {
     sum += value.TotalBufferSize();
   }
   return sum;
+}
+
+struct BufferProperties {
+  uint64_t address;
+  int64_t capacity;
+  friend bool operator<(const BufferProperties& lhs, const BufferProperties& rhs) {
+    if (lhs.address == rhs.address) {
+      return (lhs.capacity > rhs.capacity);
+    } else {
+      return (lhs.address > rhs.address);
+    }
+  }
+};
+
+bool AddBuffersToSet(std::shared_ptr<Buffer> const& buffer,
+                     std::set<BufferProperties>* seen_buffers) {
+  return (buffer &&
+          seen_buffers->insert(BufferProperties{buffer->address(), buffer->capacity()})
+              .second);
+}
+
+bool AddBuffersToSet(std::vector<std::shared_ptr<Buffer>> const& buffers,
+                     std::set<BufferProperties>* seen_buffers) {
+  bool insertion_occured = false;
+  for (const auto& buffer : buffers) {
+    insertion_occured |=
+        (buffer &&
+         seen_buffers->insert(BufferProperties{buffer->address(), buffer->capacity()})
+             .second);
+  }
+  return insertion_occured;
+}
+
+bool AddBuffersToSet(const ArrayData& array_data,
+                     std::set<BufferProperties>* seen_buffers) {
+  bool insertion_occured = false;
+  for (const auto& buffer : array_data.buffers) {
+    insertion_occured |=
+        (buffer &&
+         seen_buffers->insert(BufferProperties{buffer->address(), buffer->capacity()})
+             .second);
+  }
+  for (const auto& child : array_data.child_data) {
+    insertion_occured |= AddBuffersToSet(*child, seen_buffers);
+  }
+  if (array_data.dictionary) {
+    insertion_occured |= AddBuffersToSet(*array_data.dictionary, seen_buffers);
+  }
+  return insertion_occured;
+}
+
+bool AddBuffersToSet(const Array& array, std::set<BufferProperties>* seen_buffers) {
+  return AddBuffersToSet(*array.data(), seen_buffers);
+}
+
+bool AddBuffersToSet(const ChunkedArray& chunked_array,
+                     std::set<BufferProperties>* seen_buffers) {
+  bool insertion_occured = false;
+  for (const auto& chunk : chunked_array.chunks()) {
+    insertion_occured |= AddBuffersToSet(*chunk, seen_buffers);
+  }
+  return insertion_occured;
+}
+
+bool AddBuffersToSet(const RecordBatch& record_batch,
+                     std::set<BufferProperties>* seen_buffers) {
+  bool insertion_occured = false;
+  for (const auto& column : record_batch.columns()) {
+    insertion_occured |= AddBuffersToSet(*column, seen_buffers);
+  }
+  return insertion_occured;
+}
+
+bool AddBuffersToSet(const Table& table, std::set<BufferProperties>* seen_buffers) {
+  bool insertion_occured = false;
+  for (const auto& column : table.columns()) {
+    insertion_occured |= AddBuffersToSet(*column, seen_buffers);
+  }
+  return insertion_occured;
+}
+
+// Add all Buffers to a given set, return true if anything was actually added.
+// If all the buffers in the datum were already in the set, this will return false.
+bool AddBuffersToSet(Datum datum, std::set<BufferProperties>* seen_buffers) {
+  switch (datum.kind()) {
+    case Datum::ARRAY:
+      return AddBuffersToSet(*util::get<std::shared_ptr<ArrayData>>(datum.value),
+                             seen_buffers);
+    case Datum::CHUNKED_ARRAY:
+      return AddBuffersToSet(*util::get<std::shared_ptr<ChunkedArray>>(datum.value),
+                             seen_buffers);
+    case Datum::RECORD_BATCH:
+      return AddBuffersToSet(*util::get<std::shared_ptr<RecordBatch>>(datum.value),
+                             seen_buffers);
+    case Datum::TABLE:
+      return AddBuffersToSet(*util::get<std::shared_ptr<Table>>(datum.value),
+                             seen_buffers);
+    case Datum::SCALAR:
+      return false;
+    default:
+      DCHECK(false);
+      return false;
+  }
 }
 
 std::string ExecBatch::ToString() const {
@@ -698,7 +803,26 @@ class ScalarExecutor : public KernelExecutorImpl<ScalarKernel> {
       }
     }
 
+#ifndef NDEBUG
+
+    // To check whether the kernel allocated new Buffers,
+    // insert all the preallocated ones into a set
+    BufferProperties validity_buffer;
+    if (validity_preallocated_) {
+      validity_buffer = {out.array()->buffers[0]->address(),
+                         out.array()->buffers[0]->capacity()};
+    }
+    std::set<BufferProperties> pre_buffers;
+    for (size_t i = 0; i < data_preallocated_.size(); ++i) {
+      const auto& prealloc = data_preallocated_[i];
+      if (prealloc.bit_width >= 0) {
+        AddBuffersToSet(out.array()->buffers[i + 1], &pre_buffers);
+      }
+    }
+#endif  // NDEBUG
+
     RETURN_NOT_OK(kernel_->exec(kernel_ctx_, batch, &out));
+
     if (preallocate_contiguous_) {
       // Some kernels may like to simply nullify the validity bitmap when
       // they know the output will have 0 nulls.  However, this is not compatible
@@ -707,6 +831,31 @@ class ScalarExecutor : public KernelExecutorImpl<ScalarKernel> {
         DCHECK(out.array()->buffers[0])
             << "Null bitmap deleted by kernel but can_write_into_slices = true";
       }
+
+#ifndef NDEBUG
+      // Check whether the kernel allocated new Buffers
+      // (instead of using the preallocated ones)
+      if (validity_preallocated_) {
+        if (out.array()->buffers[0]) {  // it is possible the validity buffer was deleted
+          if (validity_buffer.address != out.array()->buffers[0]->address() ||
+              validity_buffer.capacity != out.array()->buffers[0]->capacity()) {
+            return Status::Invalid(
+                "Pre-allocated validity buffer was modified "
+                "in function kernel");
+          }
+        }
+      }
+      for (size_t i = 0; i < data_preallocated_.size(); ++i) {
+        const auto& prealloc = data_preallocated_[i];
+        if (prealloc.bit_width >= 0) {
+          if (AddBuffersToSet(out.array()->buffers[i + 1], &pre_buffers)) {
+            return Status::Invalid(
+                "Unauthorized memory allocations "
+                "in function kernel");
+          }
+        }
+      }
+#endif  // NDEBUG
     } else {
       // If we are producing chunked output rather than one big array, then
       // emit each chunk as soon as it's available
@@ -890,7 +1039,60 @@ class VectorExecutor : public KernelExecutorImpl<VectorKernel> {
         output_descr_.shape == ValueDescr::ARRAY) {
       RETURN_NOT_OK(PropagateNulls(kernel_ctx_, batch, out.mutable_array()));
     }
+
+#ifndef NDEBUG
+    // To check whether the kernel allocated new Buffers,
+    // insert all the preallocated ones into a set
+    // To check whether the kernel allocated new Buffers,
+    // insert all the preallocated ones into a set
+    auto pre_kind = out.kind();
+    BufferProperties validity_buffer;
+    if (validity_preallocated_) {
+      validity_buffer = {out.array()->buffers[0]->address(),
+                         out.array()->buffers[0]->capacity()};
+    }
+    std::set<BufferProperties> pre_buffers;
+    for (size_t i = 0; i < data_preallocated_.size(); ++i) {
+      const auto& prealloc = data_preallocated_[i];
+      if (prealloc.bit_width >= 0) {
+        AddBuffersToSet(out.array()->buffers[i + 1], &pre_buffers);
+      }
+    }
+#endif  // NDEBUG
+
     RETURN_NOT_OK(kernel_->exec(kernel_ctx_, batch, &out));
+
+#ifndef NDEBUG
+    // Check whether the kernel allocated new Buffers
+    // (instead of using the preallocated ones)
+    if (validity_preallocated_) {
+      // it is possible the validity buffer was deleted
+      if (out.is_array() && out.array()->buffers[0]) {
+        if (validity_buffer.address != out.array()->buffers[0]->address() ||
+            validity_buffer.capacity != out.array()->buffers[0]->capacity()) {
+          return Status::Invalid(
+              "Pre-allocated validity buffer was modified "
+              "in function kernel");
+        }
+      }
+    }
+    for (size_t i = 0; i < data_preallocated_.size(); ++i) {
+      const auto& prealloc = data_preallocated_[i];
+      if (prealloc.bit_width >= 0) {
+        if (pre_kind != out.kind()) {
+          return Status::Invalid(
+              "Pre-allocated out Datum was changed into another type "
+              "in function kernel");
+        }
+        if (AddBuffersToSet(out.array()->buffers[i + 1], &pre_buffers)) {
+          return Status::Invalid(
+              "Unauthorized memory allocations "
+              "in function kernel");
+        }
+      }
+    }
+#endif  // NDEBUG
+
     if (!kernel_->finalize) {
       // If there is no result finalizer (e.g. for hash-based functions, we can
       // emit the processed batch right away rather than waiting
