@@ -383,7 +383,7 @@ struct Divide {
   static enable_if_decimal_value<T> Call(KernelContext*, Arg0 left, Arg1 right,
                                          Status* st) {
     if (right == Arg1()) {
-      *st = Status::Invalid("Divide by zero");
+      *st = Status::Invalid("divide by zero");
       return T();
     } else {
       return left / right;

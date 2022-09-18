@@ -189,6 +189,11 @@ struct GetOutputType<Decimal256Type> {
   using T = Decimal256;
 };
 
+template <>
+struct GetOutputType<StructType> {
+  using T = StructScalar;
+};
+
 // ----------------------------------------------------------------------
 // enable_if helpers for C types
 
@@ -220,6 +225,9 @@ template <typename T, typename R = T>
 using enable_if_decimal_value =
     enable_if_t<std::is_same<Decimal128, T>::value || std::is_same<Decimal256, T>::value,
                 R>;
+
+template <typename T, typename R = T>
+using enable_if_c_number = enable_if_t<has_c_type<T>::value && !is_boolean_type<T>::value, R>;
 
 // ----------------------------------------------------------------------
 // Iteration / value access utilities
@@ -322,6 +330,24 @@ struct OutputArrayWriter<Type, enable_if_c_number_or_decimal<Type>> {
   }
 };
 
+template <typename Type>
+struct OutputArrayWriter<Type, enable_if_struct<Type>> {
+  using T = typename TypeTraits<Type>::ScalarType;
+  T* values;
+
+  explicit OutputArrayWriter(ArrayData* data) : values(data->GetMutableValues<T>(1)) {}
+
+  void Write(T value) { *values++ = value; }
+
+  // Note that this doesn't write the null bitmap, which should be consistent
+  // with Write / WriteNull calls
+  void WriteNull() { *values++ = T(null()); }
+
+  void WriteAllNull(int64_t length) {
+    std::memset(static_cast<void*>(values), 0, sizeof(T) * length);
+  }
+};
+
 // (Un)box Scalar to / from C++ value
 
 template <typename Type, typename Enable = void>
@@ -400,7 +426,16 @@ struct BoxScalar<Decimal256Type> {
   static void Box(T val, Scalar* out) { checked_cast<ScalarType*>(out)->value = val; }
 };
 
-// A VisitArraySpanInline variant that calls its visitor function with logical
+template <>
+struct BoxScalar<StructType> {
+  using T = StructScalar;
+  using ScalarType = StructScalar;
+  static void Box(T val, Scalar* out) {
+    checked_cast<ScalarType*>(out)->value = std::move(val.value);
+  }
+};
+
+// A VisitArrayDataInline variant that calls its visitor function with logical
 // values, such as Decimal128 rather than util::string_view.
 
 template <typename T, typename VisitFunc, typename NullFunc>
@@ -555,6 +590,21 @@ struct OutputAdapter<Type, enable_if_base_binary<Type>> {
   }
 };
 
+template <typename Type>
+struct OutputAdapter<Type, enable_if_struct<Type>> {
+  using T = typename TypeTraits<Type>::ScalarType;
+
+  template <typename Generator>
+  static Status Write(KernelContext*, Datum* out, Generator&& generator) {
+    ArrayData* out_arr = out->mutable_array();
+    auto out_data = out_arr->GetMutableValues<T>(1);
+    for (int64_t i = 0; i < out_arr->length; ++i) {
+      *out_data++ = generator();
+    }
+    return Status::OK();
+  }
+};
+
 // A kernel exec generator for unary functions that addresses both array and
 // scalar inputs and dispatches input iteration and output writing to other
 // templates
@@ -591,7 +641,7 @@ struct ScalarUnary {
   }
 };
 
-// An alternative to ScalarUnary that Applies a scalar operation with state on
+// An alternative to ScalarUnary that applies a scalar operation with state on
 // only the not-null values of a single array
 template <typename OutType, typename Arg0Type, typename Op>
 struct ScalarUnaryNotNullStateful {

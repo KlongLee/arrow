@@ -65,11 +65,13 @@ struct IsPositiveVisitor {
     result = scalar.value > 0;
     return Status::OK();
   }
+
   template <typename... Ts>
   Status Visit(const DecimalScalar<Ts...>& scalar) {
     result = scalar.value > 0;
     return Status::OK();
   }
+
   Status Visit(const Scalar& scalar) { return Status::OK(); }
 };
 
@@ -78,9 +80,6 @@ bool IsPositive(const Scalar& scalar) {
   std::ignore = VisitScalarInline(scalar, &visitor);
   return visitor.result;
 }
-
-// N.B. take care not to conflict with type_traits.h as that can cause surprises in a
-// unity build
 
 // Bitwise operations
 
@@ -647,7 +646,7 @@ struct RoundOptionsWrapper<RoundOptions> : public OptionsWrapper<RoundOptions> {
   explicit RoundOptionsWrapper(OptionsType options) : OptionsWrapper(std::move(options)) {
     // Only positive exponents for powers of 10 are used because combining
     // multiply and division operations produced more stable rounding than
-    // using multiply-only.  Refer to NumPy's round implementation:
+    // using multiply-only. Refer to NumPy's round implementation:
     // https://github.com/numpy/numpy/blob/7b2f20b406d27364c812f7a81a9c901afbd3600c/numpy/core/src/multiarray/calculation.c#L589
     pow10 = RoundUtil::Pow10(std::abs(options.ndigits));
   }
@@ -707,7 +706,7 @@ struct RoundOptionsWrapper<RoundToMultipleOptions>
   }
 };
 
-template <typename ArrowType, RoundMode RndMode, typename Enable = void>
+template <typename ArrowType, RoundMode kRoundMode, typename Enable = void>
 struct Round {
   using CType = typename TypeTraits<ArrowType>::CType;
   using State = RoundOptionsWrapper<RoundOptions>;
@@ -729,13 +728,13 @@ struct Round {
     auto frac = round_val - std::floor(round_val);
     if (frac != T(0)) {
       // Use std::round() if in tie-breaking mode and scaled value is not 0.5.
-      if ((RndMode >= RoundMode::HALF_DOWN) && (frac != T(0.5))) {
+      if ((kRoundMode >= RoundMode::HALF_DOWN) && (frac != T(0.5))) {
         round_val = std::round(round_val);
       } else {
-        round_val = RoundImpl<CType, RndMode>::Round(round_val);
+        round_val = RoundImpl<CType, kRoundMode>::Round(round_val);
       }
       // Equality check is ommitted so that the common case of 10^0 (integer rounding)
-      // uses multiply-only
+      // uses multiply-only.
       round_val = ndigits > 0 ? (round_val / pow10) : (round_val * pow10);
       if (!std::isfinite(round_val)) {
         *st = Status::Invalid("overflow occurred during rounding");
@@ -900,6 +899,7 @@ struct RoundToMultiple<ArrowType, kRoundMode, enable_if_decimal<ArrowType>> {
     std::pair<CType, CType> pair;
     *st = arg.Divide(multiple).Value(&pair);
     if (!st->ok()) return arg;
+    auto& quotient = pair.first;
     const auto& remainder = pair.second;
     if (remainder == 0) return arg;
     if (kRoundMode >= RoundMode::HALF_DOWN) {
@@ -910,25 +910,25 @@ struct RoundToMultiple<ArrowType, kRoundMode, enable_if_decimal<ArrowType>> {
         // decimal value, but rather manipulating the multiple
         switch (kRoundMode) {
           case RoundMode::HALF_DOWN:
-            if (remainder.Sign() < 0) pair.first -= 1;
+            if (remainder.Sign() < 0) quotient -= 1;
             break;
           case RoundMode::HALF_UP:
-            if (remainder.Sign() >= 0) pair.first += 1;
+            if (remainder.Sign() >= 0) quotient += 1;
             break;
           case RoundMode::HALF_TOWARDS_ZERO:
             // Do nothing
             break;
           case RoundMode::HALF_TOWARDS_INFINITY:
-            pair.first += remainder.Sign() >= 0 ? 1 : -1;
+            quotient += remainder.Sign() >= 0 ? 1 : -1;
             break;
           case RoundMode::HALF_TO_EVEN:
-            if (pair.first.low_bits() % 2 != 0) {
-              pair.first += remainder.Sign() >= 0 ? 1 : -1;
+            if (quotient.low_bits() % 2 != 0) {
+              quotient += remainder.Sign() >= 0 ? 1 : -1;
             }
             break;
           case RoundMode::HALF_TO_ODD:
-            if (pair.first.low_bits() % 2 == 0) {
-              pair.first += remainder.Sign() >= 0 ? 1 : -1;
+            if (quotient.low_bits() % 2 == 0) {
+              quotient += remainder.Sign() >= 0 ? 1 : -1;
             }
             break;
           default:
@@ -937,12 +937,12 @@ struct RoundToMultiple<ArrowType, kRoundMode, enable_if_decimal<ArrowType>> {
       } else if (remainder.Sign() >= 0) {
         // Positive, round up/down
         if (remainder > half_multiple) {
-          pair.first += 1;
+          quotient += 1;
         }
       } else {
         // Negative, round up/down
         if (remainder < neg_half_multiple) {
-          pair.first -= 1;
+          quotient -= 1;
         }
       }
     } else {
@@ -950,22 +950,22 @@ struct RoundToMultiple<ArrowType, kRoundMode, enable_if_decimal<ArrowType>> {
       // decimal value, but rather manipulating the multiple
       switch (kRoundMode) {
         case RoundMode::DOWN:
-          if (remainder.Sign() < 0) pair.first -= 1;
+          if (remainder.Sign() < 0) quotient -= 1;
           break;
         case RoundMode::UP:
-          if (remainder.Sign() >= 0) pair.first += 1;
+          if (remainder.Sign() >= 0) quotient += 1;
           break;
         case RoundMode::TOWARDS_ZERO:
           // Do nothing
           break;
         case RoundMode::TOWARDS_INFINITY:
-          pair.first += remainder.Sign() >= 0 ? 1 : -1;
+          quotient += remainder.Sign() >= 0 ? 1 : -1;
           break;
         default:
           DCHECK(false);
       }
     }
-    CType round_val = pair.first * multiple;
+    CType round_val = quotient * multiple;
     if (!round_val.FitsInPrecision(ty.precision())) {
       *st = Status::Invalid("Rounded value ", round_val.ToString(ty.scale()),
                             " does not fit in precision of ", ty);
@@ -1000,6 +1000,102 @@ struct Trunc {
     static_assert(std::is_same<T, Arg>::value, "");
     return RoundImpl<T, RoundMode::TOWARDS_ZERO>::Round(arg);
   }
+};
+
+// TODO(edponce): Move builders to function state and reset.
+struct Divmod {
+  template <typename T, typename Arg0, typename Arg1>
+  static enable_if_floating_value<T, FixedSizeListScalar> Call(KernelContext* ctx, Arg0 dividend, Arg1 divisor, Status* st) {
+    static_assert(std::is_same<T, Arg0>::value, "");
+
+    T quotient = std::floor(dividend / divisor);
+    T remainder = dividend - quotient * divisor;
+
+    NumericBuilder<T> builder;
+    builder.Append(quotient);
+    builder.Append(remainder);
+    std::shared_ptr<Array> array;
+    builder.Finish(&array);
+    FixedSizeListScalar list(array);
+    return list;
+  }
+
+  template <typename T, typename Arg0, typename Arg1>
+  static enable_if_integer_value<T, FixedSizeListScalar> Call(KernelContext* ctx, Arg0 dividend, Arg1 divisor, Status* st) {
+    T quotient = dividend / divisor;
+    T remainder = dividend - quotient * divisor;
+
+    NumericBuilder<T> builder;
+    builder.Append(quotient);
+    builder.Append(remainder);
+    std::shared_ptr<Array> array;
+    builder.Finish(&array);
+    FixedSizeListScalar list(array);
+    return list;
+  }
+
+  // template <typename T, typename Arg0, typename Arg1>
+  // static enable_if_decimal_value<T, FixedSizeListScalar> Call(KernelContext* ctx, Arg0 dividend, Arg1 divisor, Status* st) {
+  //   std::pair<T, T> pair;
+  //   *st = dividend.Divide(divisor).Value(&pair);
+  //   const auto& quotient = pair.first;
+  //   const auto& remainder = pair.second;
+  //   return {quotient, remainder};
+  // }
+};
+
+struct DivmodChecked {
+  template <typename T, typename Arg0, typename Arg1>
+  static enable_if_floating_value<T, FixedSizeListScalar> Call(KernelContext* ctx, Arg0 dividend, Arg1 divisor, Status* st) {
+    T quotient = std::floor(DivideChecked::Call<T, Arg0, Arg1>(ctx, dividend, divisor, st));
+    T remainder;
+    if (!st->ok()) {
+        quotient = 0;
+        remainder = 0;
+    } else {
+      remainder = dividend - quotient * divisor;
+    }
+
+    NumericBuilder<T> builder;
+    builder.Append(quotient);
+    builder.Append(remainder);
+    std::shared_ptr<Array> array;
+    builder.Finish(&array);
+    FixedSizeListScalar list(array);
+    return list;
+  }
+
+  template <typename T, typename Arg0, typename Arg1>
+  static enable_if_integer_value<T, FixedSizeListScalar> Call(KernelContext* ctx, Arg0 dividend, Arg1 divisor, Status* st) {
+    T quotient = DivideChecked::Call<T, Arg0, Arg1>(ctx, dividend, divisor, st);
+    T remainder;
+    if (!st->ok()) {
+        return {0, 0};
+    } else {
+      remainder = dividend - quotient * divisor;
+    }
+
+    NumericBuilder<T> builder;
+    builder.Append(quotient);
+    builder.Append(remainder);
+    std::shared_ptr<Array> array;
+    builder.Finish(&array);
+    FixedSizeListScalar list(array);
+    return list;
+  }
+
+  // template <typename T, typename Arg0, typename Arg1>
+  // static enable_if_decimal_value<T, FixedSizeListScalar> Call(KernelContext* ctx, Arg0 dividend, Arg1 divisor, Status* st) {
+  //   std::pair<T, T> pair;
+  //   *st = dividend.Divide(divisor).Value(&pair);
+  //   if (!st->ok()) {
+  //     *st = Status::Invalid("division error");
+  //     return {T(), T()};
+  //   }
+  //   const auto& quotient = pair.first;
+  //   const auto& remainder = pair.second;
+  //   return {quotient, remainder};
+  // }
 };
 
 // Generate a kernel given a bitwise arithmetic functor. Assumes the
@@ -1374,6 +1470,32 @@ std::shared_ptr<ScalarFunction> MakeArithmeticFunctionNotNull(std::string name,
 }
 
 template <typename Op>
+std::shared_ptr<ScalarFunction> MakeArithmeticFunctionStructOutType(
+    std::string name, const FunctionDoc* doc,
+    std::function<std::shared_ptr<DataType>(std::shared_ptr<DataType>)> MakeStructType) {
+  auto func = std::make_shared<ArithmeticFunction>(name, Arity::Binary(), doc);
+  for (const auto& ty : NumericTypes()) {
+    auto out_ty = MakeStructType(ty);
+    auto exec = GenerateNumeric<ScalarBinaryEqualTypes, StructType, Op>(ty);
+    DCHECK_OK(func->AddKernel({ty, ty}, out_ty, exec));
+  }
+  return func;
+}
+
+template <typename Op>
+std::shared_ptr<ScalarFunction> MakeArithmeticFunctionNotNullStructOutType(
+    std::string name, const FunctionDoc* doc,
+    std::function<std::shared_ptr<DataType>(std::shared_ptr<DataType>)> MakeStructType) {
+  auto func = std::make_shared<ArithmeticFunction>(name, Arity::Binary(), doc);
+  for (const auto& ty : NumericTypes()) {
+    auto out_ty = MakeStructType(ty);
+    auto exec = GenerateNumeric<ScalarBinaryNotNullEqualTypes, StructType, Op>(ty);
+    DCHECK_OK(func->AddKernel({ty, ty}, out_ty, exec));
+  }
+  return func;
+}
+
+template <typename Op>
 std::shared_ptr<ScalarFunction> MakeUnaryArithmeticFunction(std::string name,
                                                             FunctionDoc doc) {
   auto func = std::make_shared<ArithmeticFunction>(name, Arity::Unary(), std::move(doc));
@@ -1697,6 +1819,20 @@ const FunctionDoc div_checked_doc{
     "Divide the arguments element-wise",
     ("An error is returned when trying to divide by zero, or when\n"
      "integer overflow is encountered."),
+    {"dividend", "divisor"}};
+
+const FunctionDoc divmod_doc{
+    "Calculate the quotient and remainder",
+    ("Integer division by zero returns an error. However, integer overflow\n"
+     "wraps around, and floating-point division by zero returns infinity.\n"
+     "Use function \"divmod_checked\" if you want to get an error\n"
+     "in all the aforementioned cases."),
+    {"dividend", "divisor"}};
+
+const FunctionDoc divmod_checked_doc{
+    "Calculate the quotient and remainder",
+    ("Integer division by zero returns an error, or when integer overflow is\n"
+     "encountered. Floating-point division by zero returns infinity."),
     {"dividend", "divisor"}};
 
 const FunctionDoc negate_doc{"Negate the argument element-wise",
@@ -2200,6 +2336,16 @@ void RegisterScalarArithmetic(FunctionRegistry* registry) {
   }
 
   DCHECK_OK(registry->AddFunction(std::move(divide_checked)));
+
+  // ----------------------------------------------------------------------
+  // auto divmod = MakeArithmeticFunctionStructOutType<Divmod>(
+  //     "divmod", divmod_doc, DivmodUtil::MakeDivmodOutType);
+  // DCHECK_OK(registry->AddFunction(std::move(divmod)));
+
+  // // ----------------------------------------------------------------------
+  // auto divmod_checked = MakeArithmeticFunctionNotNullStructOutType<DivmodChecked>(
+  //     "divmod_checked", divmod_checked_doc, DivmodUtil::MakeDivmodOutType);
+  // DCHECK_OK(registry->AddFunction(std::move(divmod_checked)));
 
   // ----------------------------------------------------------------------
   auto negate = MakeUnaryArithmeticFunction<Negate>("negate", negate_doc);
