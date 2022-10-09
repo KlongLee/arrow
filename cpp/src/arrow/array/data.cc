@@ -131,7 +131,6 @@ int64_t ArrayData::GetNullCount() const {
   }
   return precomputed;
 }
-
 // ----------------------------------------------------------------------
 // Methods for ArraySpan
 
@@ -195,6 +194,7 @@ int GetNumBuffers(const DataType& type) {
     case Type::NA:
     case Type::STRUCT:
     case Type::FIXED_SIZE_LIST:
+    case Type::RUN_LENGTH_ENCODED:
       return 1;
     case Type::BINARY:
     case Type::LARGE_BINARY:

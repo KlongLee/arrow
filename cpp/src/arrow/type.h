@@ -1196,6 +1196,43 @@ class ARROW_EXPORT DenseUnionType : public UnionType {
   std::string name() const override { return "dense_union"; }
 };
 
+/// \brief Type class class that can be subclassed by all encoding types, that allowes
+/// users to check if arrays are compatible besides the encoding independent of which
+/// exact encoding they use
+class ARROW_EXPORT EncodingType {
+ public:
+  explicit EncodingType(std::shared_ptr<DataType> encoded_type)
+      : encoded_type_{encoded_type} {}
+
+  const std::shared_ptr<DataType>& encoded_type() const { return encoded_type_; }
+
+ private:
+  std::shared_ptr<DataType> encoded_type_;
+};
+
+/// \brief Type class for run-length encoded data
+class ARROW_EXPORT RunLengthEncodedType : public NestedType, public EncodingType {
+ public:
+  static constexpr Type::type type_id = Type::RUN_LENGTH_ENCODED;
+
+  static constexpr const char* type_name() { return "run_length_encoded"; }
+
+  explicit RunLengthEncodedType(std::shared_ptr<DataType> encoded_type);
+
+  DataTypeLayout layout() const override {
+    // always add one that is NULLPTR to make code, since existing code may assume there
+    // is at least one buffer
+    return DataTypeLayout({DataTypeLayout::AlwaysNull()});
+  }
+
+  std::string ToString() const override;
+
+  std::string name() const override { return "run_length_encoded"; }
+
+ private:
+  std::string ComputeFingerprint() const override;
+};
+
 /// @}
 
 // ----------------------------------------------------------------------
@@ -2100,6 +2137,7 @@ static inline bool HasValidityBitmap(Type::type id) {
     case Type::NA:
     case Type::DENSE_UNION:
     case Type::SPARSE_UNION:
+    case Type::RUN_LENGTH_ENCODED:
       return false;
     default:
       return true;

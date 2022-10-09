@@ -157,6 +157,7 @@ std::string ToString(Type::type id) {
     TO_STRING_CASE(DENSE_UNION)
     TO_STRING_CASE(SPARSE_UNION)
     TO_STRING_CASE(DICTIONARY)
+    TO_STRING_CASE(RUN_LENGTH_ENCODED)
     TO_STRING_CASE(EXTENSION)
 
 #undef TO_STRING_CASE
@@ -712,6 +713,21 @@ Result<std::shared_ptr<DataType>> DenseUnionType::Make(
     std::vector<std::shared_ptr<Field>> fields, std::vector<int8_t> type_codes) {
   RETURN_NOT_OK(ValidateParameters(fields, type_codes, UnionMode::DENSE));
   return std::make_shared<DenseUnionType>(fields, type_codes);
+}
+
+// ----------------------------------------------------------------------
+// Run-length encoded type
+
+RunLengthEncodedType::RunLengthEncodedType(std::shared_ptr<DataType> encoded_type)
+    : NestedType(Type::RUN_LENGTH_ENCODED), EncodingType(std::move(encoded_type)) {
+  children_ = {std::make_shared<Field>("run_ends", int32(), false),
+               std::make_shared<Field>("values", encoded_type, true)};
+}
+
+std::string RunLengthEncodedType::ToString() const {
+  std::stringstream s;
+  s << name() << "<" << encoded_type()->ToString() << ">";
+  return s.str();
 }
 
 // ----------------------------------------------------------------------
@@ -2147,6 +2163,14 @@ std::string UnionType::ComputeFingerprint() const {
   return ss.str();
 }
 
+std::string RunLengthEncodedType::ComputeFingerprint() const {
+  std::stringstream ss;
+  ss << TypeIdFingerprint(*this) << "{";
+  ss << encoded_type()->fingerprint();
+  ss << "}";
+  return ss.str();
+}
+
 std::string TimeType::ComputeFingerprint() const {
   std::stringstream ss;
   ss << TypeIdFingerprint(*this) << TimeUnitFingerprint(unit_);
@@ -2281,6 +2305,10 @@ std::shared_ptr<DataType> fixed_size_list(const std::shared_ptr<Field>& value_fi
 
 std::shared_ptr<DataType> struct_(const std::vector<std::shared_ptr<Field>>& fields) {
   return std::make_shared<StructType>(fields);
+}
+
+std::shared_ptr<DataType> run_length_encoded(std::shared_ptr<DataType> encoded_type) {
+  return std::make_shared<RunLengthEncodedType>(std::move(encoded_type));
 }
 
 std::shared_ptr<DataType> sparse_union(FieldVector child_fields,

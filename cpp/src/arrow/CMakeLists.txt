@@ -140,6 +140,7 @@ set(ARROW_SRCS
     array/array_binary.cc
     array/array_decimal.cc
     array/array_dict.cc
+    array/array_encoded.cc
     array/array_nested.cc
     array/array_primitive.cc
     array/builder_adaptive.cc
@@ -216,6 +217,7 @@ set(ARROW_SRCS
     util/key_value_metadata.cc
     util/memory.cc
     util/mutex.cc
+    util/rle_util.cc
     util/string.cc
     util/string_builder.cc
     util/task_group.cc
@@ -447,6 +449,7 @@ if(ARROW_COMPUTE)
        compute/kernels/vector_hash.cc
        compute/kernels/vector_nested.cc
        compute/kernels/vector_replace.cc
+       compute/kernels/vector_run_length_encode.cc
        compute/kernels/vector_selection.cc
        compute/kernels/vector_sort.cc
        compute/row/encode_internal.cc
@@ -713,6 +716,7 @@ add_arrow_test(array_test
                array/array_test.cc
                array/array_binary_test.cc
                array/array_dict_test.cc
+               array/array_encoded_test.cc
                array/array_list_test.cc
                array/array_struct_test.cc
                array/array_union_test.cc
