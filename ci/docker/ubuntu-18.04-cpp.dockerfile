@@ -94,6 +94,7 @@ RUN apt-get update -y -q && \
         libre2-dev \
         libsnappy-dev \
         libssl-dev \
+        libxml2-dev \
         ninja-build \
         pkg-config \
         protobuf-compiler \
@@ -119,7 +120,8 @@ RUN apt-get update -y -q && \
 COPY ci/scripts/install_sccache.sh /arrow/ci/scripts/
 RUN /arrow/ci/scripts/install_sccache.sh unknown-linux-musl /usr/local/bin
 
-ENV ARROW_BUILD_STATIC=ON \
+ENV ARROW_AZURE=ON \
+    ARROW_BUILD_STATIC=ON \
     ARROW_BUILD_TESTS=ON \
     ARROW_DATASET=ON \
     ARROW_DEPENDENCY_SOURCE=SYSTEM \

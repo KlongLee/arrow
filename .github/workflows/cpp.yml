@@ -129,6 +129,7 @@ jobs:
     if: ${{ !contains(github.event.pull_request.title, 'WIP') }}
     timeout-minutes: 75
     env:
+      ARROW_AZURE: ON
       ARROW_BUILD_TESTS: ON
       ARROW_DATASET: ON
       ARROW_FLIGHT: ON
@@ -168,6 +169,9 @@ jobs:
             ci/scripts/install_minio.sh latest /usr/local
       - name: Install Google Cloud Storage Testbench
         run: ci/scripts/install_gcs_testbench.sh default
+      - name: Install Azurite Storage Emulator
+        shell: bash
+        run: ci/scripts/install_azurite.sh
       - name: Setup ccache
         run: |
           ci/scripts/ccache_setup.sh
@@ -309,6 +313,7 @@ jobs:
           - msystem_lower: clang64
             msystem_upper: CLANG64
     env:
+      ARROW_AZURE: OFF
       ARROW_BUILD_SHARED: ON
       ARROW_BUILD_STATIC: OFF
       ARROW_BUILD_TESTS: ON
