@@ -118,7 +118,7 @@ Status InvalidMessageType(MessageType expected, MessageType actual) {
 struct IpcReadContext {
   IpcReadContext(DictionaryMemo* memo, const IpcReadOptions& option, bool swap,
                  MetadataVersion version = MetadataVersion::V5,
-                 Compression::type kind = Compression::UNCOMPRESSED)
+                 Compression::type kind = Compression::ACT_UNCOMPRESSED)
       : dictionary_memo(memo),
         options(option),
         metadata_version(version),
@@ -563,7 +563,7 @@ Result<std::shared_ptr<RecordBatch>> LoadRecordBatchSubset(
     filtered_schema = schema;
     filtered_columns = std::move(columns);
   }
-  if (context.compression != Compression::UNCOMPRESSED) {
+  if (context.compression != Compression::ACT_UNCOMPRESSED) {
     RETURN_NOT_OK(
         DecompressBuffers(context.compression, context.options, &filtered_columns));
   }
@@ -595,7 +595,7 @@ Result<std::shared_ptr<RecordBatch>> LoadRecordBatch(
 // Array loading
 
 Status GetCompression(const flatbuf::RecordBatch* batch, Compression::type* out) {
-  *out = Compression::UNCOMPRESSED;
+  *out = Compression::ACT_UNCOMPRESSED;
   const flatbuf::BodyCompression* compression = batch->compression();
   if (compression != nullptr) {
     if (compression->method() != flatbuf::BodyCompressionMethod::BUFFER) {
@@ -604,9 +604,9 @@ Status GetCompression(const flatbuf::RecordBatch* batch, Compression::type* out)
     }
 
     if (compression->codec() == flatbuf::CompressionType::LZ4_FRAME) {
-      *out = Compression::LZ4_FRAME;
+      *out = Compression::ACT_LZ4_FRAME;
     } else if (compression->codec() == flatbuf::CompressionType::ZSTD) {
-      *out = Compression::ZSTD;
+      *out = Compression::ACT_ZSTD;
     } else {
       return Status::Invalid("Unsupported codec in RecordBatch::compression metadata");
     }
@@ -617,7 +617,7 @@ Status GetCompression(const flatbuf::RecordBatch* batch, Compression::type* out)
 
 Status GetCompressionExperimental(const flatbuf::Message* message,
                                   Compression::type* out) {
-  *out = Compression::UNCOMPRESSED;
+  *out = Compression::ACT_UNCOMPRESSED;
   if (message->custom_metadata() != nullptr) {
     // TODO: Ensure this deserialization only ever happens once
     std::shared_ptr<KeyValueMetadata> metadata;
@@ -677,7 +677,7 @@ Result<RecordBatchWithMetadata> ReadRecordBatchInternal(
 
   Compression::type compression;
   RETURN_NOT_OK(GetCompression(batch, &compression));
-  if (context.compression == Compression::UNCOMPRESSED &&
+  if (context.compression == Compression::ACT_UNCOMPRESSED &&
       message->version() == flatbuf::MetadataVersion::V4) {
     // Possibly obtain codec information from experimental serialization format
     // in 0.17.x
@@ -796,7 +796,7 @@ Status ReadDictionary(const Buffer& metadata, const IpcReadContext& context,
 
   Compression::type compression;
   RETURN_NOT_OK(GetCompression(batch_meta, &compression));
-  if (compression == Compression::UNCOMPRESSED &&
+  if (compression == Compression::ACT_UNCOMPRESSED &&
       message->version() == flatbuf::MetadataVersion::V4) {
     // Possibly obtain codec information from experimental serialization format
     // in 0.17.x
@@ -816,7 +816,7 @@ Status ReadDictionary(const Buffer& metadata, const IpcReadContext& context,
   const Field dummy_field("", value_type);
   RETURN_NOT_OK(loader.Load(&dummy_field, dict_data.get()));
 
-  if (compression != Compression::UNCOMPRESSED) {
+  if (compression != Compression::ACT_UNCOMPRESSED) {
     ArrayDataVector dict_fields{dict_data};
     RETURN_NOT_OK(DecompressBuffers(compression, context.options, &dict_fields));
   }
@@ -1505,7 +1505,7 @@ class RecordBatchFileReaderImpl : public RecordBatchFileReader {
     IpcReadContext context(&dictionary_memo_, options_, swap_endian_);
     Compression::type compression;
     RETURN_NOT_OK(GetCompression(batch, &compression));
-    if (context.compression == Compression::UNCOMPRESSED &&
+    if (context.compression == Compression::ACT_UNCOMPRESSED &&
         message->version() == flatbuf::MetadataVersion::V4) {
       // Possibly obtain codec information from experimental serialization format
       // in 0.17.x
@@ -1606,7 +1606,7 @@ class RecordBatchFileReaderImpl : public RecordBatchFileReader {
         filtered_columns = std::move(columns);
       }
 
-      if (context.compression != Compression::UNCOMPRESSED) {
+      if (context.compression != Compression::ACT_UNCOMPRESSED) {
         RETURN_NOT_OK(
             DecompressBuffers(context.compression, context.options, &filtered_columns));
       }
