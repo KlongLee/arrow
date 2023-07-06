@@ -236,6 +236,18 @@ void SetOffsetsForScalar(ArraySpan* span, offset_type* buffer, int64_t value_siz
   span->buffers[buffer_index].size = 2 * sizeof(offset_type);
 }
 
+template <typename RunEndType>
+void FillRunEndsArrayForScalar(ArraySpan* span, const DataType* run_end_type) {
+  using RunEndCType = typename RunEndType::c_type;
+  auto buffer = reinterpret_cast<RunEndCType*>(span->scratch_space);
+  buffer[0] = static_cast<RunEndCType>(1);
+  span->type = run_end_type;
+  span->length = 1;
+  span->null_count = 0;
+  span->buffers[1].data = reinterpret_cast<uint8_t*>(buffer);
+  span->buffers[1].size = sizeof(RunEndCType);
+}
+
 int GetNumBuffers(const DataType& type) {
   switch (type.id()) {
     case Type::NA:
@@ -304,9 +316,13 @@ void ArraySpan::FillFromScalar(const Scalar& value) {
 
   Type::type type_id = value.type->id();
 
-  // Populate null count and validity bitmap (only for non-union/null types)
-  this->null_count = value.is_valid ? 0 : 1;
-  if (!is_union(type_id) && type_id != Type::NA) {
+  // Populate null count and validity bitmap
+  if (type_id == Type::NA) {
+    this->null_count = 1;
+  } else if (is_union(type_id) || type_id == Type::RUN_END_ENCODED) {
+    this->null_count = 0;
+  } else {
+    this->null_count = value.is_valid ? 0 : 1;
     this->buffers[0].data = value.is_valid ? &kTrueBit : &kFalseBit;
     this->buffers[0].size = 1;
   }
@@ -422,6 +438,22 @@ void ArraySpan::FillFromScalar(const Scalar& value) {
         this->child_data[i].FillFromScalar(*scalar.value[i]);
       }
     }
+  } else if (type_id == Type::RUN_END_ENCODED) {
+    const auto& scalar = checked_cast<const RunEndEncodedScalar&>(value);
+    this->child_data.resize(2);
+    auto& run_end_type = scalar.run_end_type();
+    switch (run_end_type->id()) {
+      case Type::INT16:
+        FillRunEndsArrayForScalar<Int16Type>(&this->child_data[0], run_end_type.get());
+        break;
+      case Type::INT32:
+        FillRunEndsArrayForScalar<Int32Type>(&this->child_data[0], run_end_type.get());
+        break;
+      default:
+        DCHECK_EQ(run_end_type->id(), Type::INT64);
+        FillRunEndsArrayForScalar<Int64Type>(&this->child_data[0], run_end_type.get());
+    }
+    this->child_data[1].FillFromScalar(*scalar.value);
   } else if (type_id == Type::EXTENSION) {
     // Pass through storage
     const auto& scalar = checked_cast<const ExtensionScalar&>(value);
