@@ -2090,15 +2090,44 @@ class FLBARecordReader : public TypedRecordReader<FLBAType>,
   std::unique_ptr<::arrow::FixedSizeBinaryBuilder> builder_;
 };
 
-class ByteArrayChunkedRecordReader : public TypedRecordReader<ByteArrayType>,
-                                     virtual public BinaryRecordReader {
+// TODO: Below concept could be used to simplify type assertion in C++20.
+// template <typename T>
+// concept ByteArrayTypeConcept = std::is_same<T, ByteArrayType>::value ||
+//                                std::is_same<T, LargeByteArrayType>::value;
+
+template <typename T>
+struct IsByteArrayType : std::false_type {};
+
+template <>
+struct IsByteArrayType<ByteArrayType> : std::true_type {};
+
+template <>
+struct IsByteArrayType<LargeByteArrayType> : std::true_type {};
+
+template <typename BAT>
+struct ByteArrayBuilderTypeTrait {
+  using BuilderType =
+      typename std::conditional<std::is_same<BAT, LargeByteArrayType>::value,
+                                ::arrow::LargeBinaryBuilder,
+                                ::arrow::BinaryBuilder>::type;
+};
+
+template <typename BAT>
+class ByteArrayChunkedRecordReaderImpl : public TypedRecordReader<BAT>,
+                                         virtual public BinaryRecordReader {
  public:
-  ByteArrayChunkedRecordReader(const ColumnDescriptor* descr, LevelInfo leaf_info,
-                               ::arrow::MemoryPool* pool, bool read_dense_for_nullable)
-      : TypedRecordReader<ByteArrayType>(descr, leaf_info, pool,
-                                         read_dense_for_nullable) {
+  using BASE = TypedRecordReader<BAT>;
+  using BASE::descr_;
+  using BASE::ResetValues;
+  using BuilderType = typename ByteArrayBuilderTypeTrait<BAT>::BuilderType;
+
+  ByteArrayChunkedRecordReaderImpl(const ColumnDescriptor* descr, LevelInfo leaf_info,
+                                   ::arrow::MemoryPool* pool,
+                                   bool read_dense_for_nullable)
+      : TypedRecordReader<BAT>(descr, leaf_info, pool, read_dense_for_nullable) {
+    static_assert(IsByteArrayType<BAT>::value, "Invalid ByteArrayType");
     ARROW_DCHECK_EQ(descr_->physical_type(), Type::BYTE_ARRAY);
-    accumulator_.builder = std::make_unique<::arrow::BinaryBuilder>(pool);
+    accumulator_.builder = std::make_unique<BuilderType>(pool);
   }
 
   ::arrow::ArrayVector GetBuilderChunks() override {
@@ -2129,15 +2158,25 @@ class ByteArrayChunkedRecordReader : public TypedRecordReader<ByteArrayType>,
 
  private:
   // Helper data structure for accumulating builder chunks
-  typename EncodingTraits<ByteArrayType>::Accumulator accumulator_;
+  typename EncodingTraits<BAT>::Accumulator accumulator_;
 };
 
-class ByteArrayDictionaryRecordReader : public TypedRecordReader<ByteArrayType>,
-                                        virtual public DictionaryRecordReader {
+using ByteArrayChunkedRecordReader = ByteArrayChunkedRecordReaderImpl<ByteArrayType>;
+using LargeByteArrayChunkedRecordReader =
+    ByteArrayChunkedRecordReaderImpl<LargeByteArrayType>;
+
+template <typename BAT>
+class ByteArrayDictionaryRecordReaderImpl : public TypedRecordReader<BAT>,
+                                            virtual public DictionaryRecordReader {
+  using BASE = TypedRecordReader<BAT>;
+  using BASE::current_encoding_;
+  using BASE::ResetValues;
+
  public:
-  ByteArrayDictionaryRecordReader(const ColumnDescriptor* descr, LevelInfo leaf_info,
-                                  ::arrow::MemoryPool* pool, bool read_dense_for_nullable)
-      : TypedRecordReader<ByteArrayType>(descr, leaf_info, pool, read_dense_for_nullable),
+  ByteArrayDictionaryRecordReaderImpl(const ColumnDescriptor* descr, LevelInfo leaf_info,
+                                      ::arrow::MemoryPool* pool,
+                                      bool read_dense_for_nullable)
+      : TypedRecordReader<BAT>(descr, leaf_info, pool, read_dense_for_nullable),
         builder_(pool) {
     this->read_dictionary_ = true;
   }
@@ -2208,11 +2247,16 @@ class ByteArrayDictionaryRecordReader : public TypedRecordReader<ByteArrayType>,
   }
 
  private:
-  using BinaryDictDecoder = DictDecoder<ByteArrayType>;
+  using BinaryDictDecoder = DictDecoder<BAT>;
 
-  ::arrow::BinaryDictionary32Builder builder_;
+  typename EncodingTraits<BAT>::DictAccumulator builder_;
   std::vector<std::shared_ptr<::arrow::Array>> result_chunks_;
 };
+
+using ByteArrayDictionaryRecordReader =
+    ByteArrayDictionaryRecordReaderImpl<ByteArrayType>;
+using LargeByteArrayDictionaryRecordReader =
+    ByteArrayDictionaryRecordReaderImpl<LargeByteArrayType>;
 
 // TODO(wesm): Implement these to some satisfaction
 template <>
@@ -2220,6 +2264,9 @@ void TypedRecordReader<Int96Type>::DebugPrintState() {}
 
 template <>
 void TypedRecordReader<ByteArrayType>::DebugPrintState() {}
+
+template <>
+void TypedRecordReader<LargeByteArrayType>::DebugPrintState() {}
 
 template <>
 void TypedRecordReader<FLBAType>::DebugPrintState() {}
@@ -2238,12 +2285,25 @@ std::shared_ptr<RecordReader> MakeByteArrayRecordReader(const ColumnDescriptor* 
   }
 }
 
+std::shared_ptr<RecordReader> MakeLargeByteArrayRecordReader(
+    const ColumnDescriptor* descr, LevelInfo leaf_info, ::arrow::MemoryPool* pool,
+    bool read_dictionary, bool read_dense_for_nullable) {
+  if (read_dictionary) {
+    return std::make_shared<LargeByteArrayDictionaryRecordReader>(
+        descr, leaf_info, pool, read_dense_for_nullable);
+  } else {
+    return std::make_shared<LargeByteArrayChunkedRecordReader>(descr, leaf_info, pool,
+                                                               read_dense_for_nullable);
+  }
+}
+
 }  // namespace
 
 std::shared_ptr<RecordReader> RecordReader::Make(const ColumnDescriptor* descr,
                                                  LevelInfo leaf_info, MemoryPool* pool,
                                                  bool read_dictionary,
-                                                 bool read_dense_for_nullable) {
+                                                 bool read_dense_for_nullable,
+                                                 bool use_large_binary_variants) {
   switch (descr->physical_type()) {
     case Type::BOOLEAN:
       return std::make_shared<TypedRecordReader<BooleanType>>(descr, leaf_info, pool,
@@ -2264,8 +2324,11 @@ std::shared_ptr<RecordReader> RecordReader::Make(const ColumnDescriptor* descr,
       return std::make_shared<TypedRecordReader<DoubleType>>(descr, leaf_info, pool,
                                                              read_dense_for_nullable);
     case Type::BYTE_ARRAY: {
-      return MakeByteArrayRecordReader(descr, leaf_info, pool, read_dictionary,
-                                       read_dense_for_nullable);
+      return use_large_binary_variants
+                 ? MakeLargeByteArrayRecordReader(descr, leaf_info, pool, read_dictionary,
+                                                  read_dense_for_nullable)
+                 : MakeByteArrayRecordReader(descr, leaf_info, pool, read_dictionary,
+                                             read_dense_for_nullable);
     }
     case Type::FIXED_LEN_BYTE_ARRAY:
       return std::make_shared<FLBARecordReader>(descr, leaf_info, pool,

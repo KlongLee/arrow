@@ -460,7 +460,9 @@ struct SchemaTreeContext {
 
 bool IsDictionaryReadSupported(const ArrowType& type) {
   // Only supported currently for BYTE_ARRAY types
-  return type.id() == ::arrow::Type::BINARY || type.id() == ::arrow::Type::STRING;
+  return type.id() == ::arrow::Type::BINARY || type.id() == ::arrow::Type::STRING ||
+         type.id() == ::arrow::Type::LARGE_BINARY ||
+         type.id() == ::arrow::Type::LARGE_STRING;
 }
 
 // ----------------------------------------------------------------------
@@ -471,7 +473,8 @@ bool IsDictionaryReadSupported(const ArrowType& type) {
     SchemaTreeContext* ctx) {
   ASSIGN_OR_RAISE(
       std::shared_ptr<ArrowType> storage_type,
-      GetArrowType(primitive_node, ctx->properties.coerce_int96_timestamp_unit()));
+      GetArrowType(primitive_node, ctx->properties.coerce_int96_timestamp_unit(),
+                   ctx->properties.use_large_binary_variants()));
   if (ctx->properties.read_dictionary(column_index) &&
       IsDictionaryReadSupported(*storage_type)) {
     return ::arrow::dictionary(::arrow::int32(), storage_type);

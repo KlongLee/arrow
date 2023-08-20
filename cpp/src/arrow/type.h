@@ -678,6 +678,8 @@ class ARROW_EXPORT BaseBinaryType : public DataType {
 
 constexpr int64_t kBinaryMemoryLimit = std::numeric_limits<int32_t>::max() - 1;
 
+constexpr int64_t kLargeBinaryMemoryLimit = std::numeric_limits<int64_t>::max() - 1;
+
 /// \addtogroup binary-datatypes
 ///
 /// @{

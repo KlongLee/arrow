@@ -438,11 +438,11 @@ void CheckConfiguredRoundtrip(
 void DoSimpleRoundtrip(const std::shared_ptr<Table>& table, bool use_threads,
                        int64_t row_group_size, const std::vector<int>& column_subset,
                        std::shared_ptr<Table>* out,
-                       const std::shared_ptr<ArrowWriterProperties>& arrow_properties =
-                           default_arrow_writer_properties()) {
+                       const std::shared_ptr<ArrowWriterProperties>&
+                           arrow_writer_properties = default_arrow_writer_properties()) {
   std::shared_ptr<Buffer> buffer;
   ASSERT_NO_FATAL_FAILURE(
-      WriteTableToBuffer(table, row_group_size, arrow_properties, &buffer));
+      WriteTableToBuffer(table, row_group_size, arrow_writer_properties, &buffer));
 
   std::unique_ptr<FileReader> reader;
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
@@ -610,9 +610,18 @@ class ParquetIOTestBase : public ::testing::Test {
   }
 
   void ReaderFromSink(std::unique_ptr<FileReader>* out) {
+    return ReaderFromSink(out, default_arrow_reader_properties());
+  }
+
+  void ReaderFromSink(std::unique_ptr<FileReader>* out,
+                      const ArrowReaderProperties& arrow_reader_properties) {
     ASSERT_OK_AND_ASSIGN(auto buffer, sink_->Finish());
-    ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                                ::arrow::default_memory_pool(), out));
+
+    FileReaderBuilder builder;
+    ASSERT_OK_NO_THROW(builder.Open(std::make_shared<BufferReader>(buffer)));
+    ASSERT_OK_NO_THROW(builder.properties(arrow_reader_properties)
+                           ->memory_pool(::arrow::default_memory_pool())
+                           ->Build(out));
   }
 
   void ReadSingleColumnFile(std::unique_ptr<FileReader> file_reader,
@@ -660,18 +669,20 @@ class ParquetIOTestBase : public ::testing::Test {
 
   void RoundTripSingleColumn(
       const std::shared_ptr<Array>& values, const std::shared_ptr<Array>& expected,
-      const std::shared_ptr<::parquet::ArrowWriterProperties>& arrow_properties,
+      const std::shared_ptr<::parquet::ArrowWriterProperties>& arrow_writer_properties,
+      const ArrowReaderProperties& arrow_reader_properties =
+          default_arrow_reader_properties(),
       bool nullable = true) {
     std::shared_ptr<Table> table = MakeSimpleTable(values, nullable);
     this->ResetSink();
     ASSERT_OK_NO_THROW(WriteTable(*table, ::arrow::default_memory_pool(), this->sink_,
                                   values->length(), default_writer_properties(),
-                                  arrow_properties));
+                                  arrow_writer_properties));
 
     std::shared_ptr<Table> out;
     std::unique_ptr<FileReader> reader;
-    ASSERT_NO_FATAL_FAILURE(this->ReaderFromSink(&reader));
-    const bool expect_metadata = arrow_properties->store_schema();
+    ASSERT_NO_FATAL_FAILURE(this->ReaderFromSink(&reader, arrow_reader_properties));
+    const bool expect_metadata = arrow_writer_properties->store_schema();
     ASSERT_NO_FATAL_FAILURE(
         this->ReadTableFromFile(std::move(reader), expect_metadata, &out));
     ASSERT_EQ(1, out->num_columns());
@@ -1342,6 +1353,23 @@ TEST_F(TestUInt32ParquetIO, Parquet_1_0_Compatibility) {
 
 using TestStringParquetIO = TestParquetIO<::arrow::StringType>;
 
+#if defined(_WIN64) || defined(__LP64__)
+TEST_F(TestStringParquetIO, SmallStringWithLargeBinaryVariantSetting) {
+  auto values = ArrayFromJSON(::arrow::utf8(), R"(["foo", "", null, "bar"])");
+
+  this->RoundTripSingleColumn(values, values, default_arrow_writer_properties());
+
+  ArrowReaderProperties arrow_reader_properties;
+  arrow_reader_properties.set_use_large_binary_variants(true);
+
+  ASSERT_OK_AND_ASSIGN(std::shared_ptr<Array> casted,
+                       ::arrow::compute::Cast(*values, ::arrow::large_utf8()));
+
+  this->RoundTripSingleColumn(values, casted, default_arrow_writer_properties(),
+                              arrow_reader_properties);
+}
+#endif
+
 TEST_F(TestStringParquetIO, EmptyStringColumnRequiredWrite) {
   std::shared_ptr<Array> values;
   ::arrow::StringBuilder builder;
@@ -1369,6 +1397,7 @@ TEST_F(TestStringParquetIO, EmptyStringColumnRequiredWrite) {
 
 using TestLargeBinaryParquetIO = TestParquetIO<::arrow::LargeBinaryType>;
 
+#if defined(_WIN64) || defined(__LP64__)
 TEST_F(TestLargeBinaryParquetIO, Basics) {
   const char* json = "[\"foo\", \"\", null, \"\xff\"]";
 
@@ -1388,6 +1417,13 @@ TEST_F(TestLargeBinaryParquetIO, Basics) {
   const auto arrow_properties =
       ::parquet::ArrowWriterProperties::Builder().store_schema()->build();
   this->RoundTripSingleColumn(large_array, large_array, arrow_properties);
+
+  ArrowReaderProperties arrow_reader_properties;
+  arrow_reader_properties.set_use_large_binary_variants(true);
+  // Input is narrow array, but expected output is large array, opposite of the above
+  // tests. This validates narrow arrays can be read as large arrays.
+  this->RoundTripSingleColumn(narrow_array, large_array,
+                              default_arrow_writer_properties(), arrow_reader_properties);
 }
 
 using TestLargeStringParquetIO = TestParquetIO<::arrow::LargeStringType>;
@@ -1412,6 +1448,7 @@ TEST_F(TestLargeStringParquetIO, Basics) {
       ::parquet::ArrowWriterProperties::Builder().store_schema()->build();
   this->RoundTripSingleColumn(large_array, large_array, arrow_properties);
 }
+#endif
 
 using TestNullParquetIO = TestParquetIO<::arrow::NullType>;
 
@@ -3878,13 +3915,14 @@ TEST(TestImpalaConversion, ArrowTimestampToImpalaTimestamp) {
   ASSERT_EQ(expected, calculated);
 }
 
-void TryReadDataFile(const std::string& path,
-                     ::arrow::StatusCode expected_code = ::arrow::StatusCode::OK) {
+void TryReadDataFileWithProperties(
+    const std::string& path, const ArrowReaderProperties& properties,
+    ::arrow::StatusCode expected_code = ::arrow::StatusCode::OK) {
   auto pool = ::arrow::default_memory_pool();
 
   std::unique_ptr<FileReader> arrow_reader;
-  Status s =
-      FileReader::Make(pool, ParquetFileReader::OpenFile(path, false), &arrow_reader);
+  Status s = FileReader::Make(pool, ParquetFileReader::OpenFile(path, false), properties,
+                              &arrow_reader);
   if (s.ok()) {
     std::shared_ptr<::arrow::Table> table;
     s = arrow_reader->ReadTable(&table);
@@ -3893,6 +3931,11 @@ void TryReadDataFile(const std::string& path,
   ASSERT_EQ(s.code(), expected_code)
       << "Expected reading file to return " << arrow::Status::CodeAsString(expected_code)
       << ", but got " << s.ToString();
+}
+
+void TryReadDataFile(const std::string& path,
+                     ::arrow::StatusCode expected_code = ::arrow::StatusCode::OK) {
+  TryReadDataFileWithProperties(path, default_arrow_reader_properties(), expected_code);
 }
 
 TEST(TestArrowReaderAdHoc, Int96BadMemoryAccess) {
@@ -3905,6 +3948,19 @@ TEST(TestArrowReaderAdHoc, CorruptedSchema) {
   auto path = test::get_data_file("PARQUET-1481.parquet", /*is_good=*/false);
   TryReadDataFile(path, ::arrow::StatusCode::IOError);
 }
+
+#if defined(ARROW_WITH_BROTLI) && defined(__LP64__)
+TEST(TestArrowParquet, LargeByteArray) {
+  auto path = test::get_data_file("large_string_map.brotli.parquet");
+  TryReadDataFile(path, ::arrow::StatusCode::NotImplemented);
+  ArrowReaderProperties reader_properties;
+  reader_properties.set_use_large_binary_variants(true);
+  reader_properties.set_read_dictionary(0, false);
+  TryReadDataFileWithProperties(path, reader_properties);
+  reader_properties.set_read_dictionary(0, true);
+  TryReadDataFileWithProperties(path, reader_properties);
+}
+#endif
 
 TEST(TestArrowReaderAdHoc, LARGE_MEMORY_TEST(LargeStringColumn)) {
   // ARROW-3762
@@ -4592,14 +4648,20 @@ TEST(TestArrowWriteDictionaries, NestedSubfield) {
 class TestArrowReadDeltaEncoding : public ::testing::Test {
  public:
   void ReadTableFromParquetFile(const std::string& file_name,
+                                const ArrowReaderProperties& properties,
                                 std::shared_ptr<Table>* out) {
     auto file = test::get_data_file(file_name);
     auto pool = ::arrow::default_memory_pool();
     std::unique_ptr<FileReader> parquet_reader;
-    ASSERT_OK(FileReader::Make(pool, ParquetFileReader::OpenFile(file, false),
+    ASSERT_OK(FileReader::Make(pool, ParquetFileReader::OpenFile(file, false), properties,
                                &parquet_reader));
     ASSERT_OK(parquet_reader->ReadTable(out));
     ASSERT_OK((*out)->ValidateFull());
+  }
+
+  void ReadTableFromParquetFile(const std::string& file_name,
+                                std::shared_ptr<Table>* out) {
+    return ReadTableFromParquetFile(file_name, default_arrow_reader_properties(), out);
   }
 
   void ReadTableFromCSVFile(const std::string& file_name,
@@ -4642,6 +4704,27 @@ TEST_F(TestArrowReadDeltaEncoding, DeltaByteArray) {
       "c_login",       "c_email_address",       "c_last_review_date"};
   for (auto name : column_names) {
     convert_options.column_types[name] = ::arrow::utf8();
+  }
+  convert_options.strings_can_be_null = true;
+  ReadTableFromCSVFile("delta_byte_array_expect.csv", convert_options, &expect_table);
+
+  ::arrow::AssertTablesEqual(*actual_table, *expect_table, false);
+}
+
+TEST_F(TestArrowReadDeltaEncoding, DeltaByteArrayWithLargeBinaryVariant) {
+  std::shared_ptr<::arrow::Table> actual_table, expect_table;
+  ArrowReaderProperties properties;
+  properties.set_use_large_binary_variants(true);
+
+  ReadTableFromParquetFile("delta_byte_array.parquet", properties, &actual_table);
+
+  auto convert_options = ::arrow::csv::ConvertOptions::Defaults();
+  std::vector<std::string> column_names = {
+      "c_customer_id", "c_salutation",          "c_first_name",
+      "c_last_name",   "c_preferred_cust_flag", "c_birth_country",
+      "c_login",       "c_email_address",       "c_last_review_date"};
+  for (auto name : column_names) {
+    convert_options.column_types[name] = ::arrow::large_utf8();
   }
   convert_options.strings_can_be_null = true;
   ReadTableFromCSVFile("delta_byte_array_expect.csv", convert_options, &expect_table);

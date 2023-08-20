@@ -109,6 +109,7 @@ struct ReaderContext {
   FileColumnIteratorFactory iterator_factory;
   bool filter_leaves;
   std::shared_ptr<std::unordered_set<int>> included_leaves;
+  bool use_large_binary_variants = false;
 
   bool IncludesLeaf(int leaf_index) const {
     if (this->filter_leaves) {

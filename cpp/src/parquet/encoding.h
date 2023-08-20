@@ -60,6 +60,7 @@ using Int96Encoder = TypedEncoder<Int96Type>;
 using FloatEncoder = TypedEncoder<FloatType>;
 using DoubleEncoder = TypedEncoder<DoubleType>;
 using ByteArrayEncoder = TypedEncoder<ByteArrayType>;
+using LargeByteArrayEncoder = TypedEncoder<LargeByteArrayType>;
 using FLBAEncoder = TypedEncoder<FLBAType>;
 
 template <typename DType>
@@ -72,6 +73,7 @@ using Int96Decoder = TypedDecoder<Int96Type>;
 using FloatDecoder = TypedDecoder<FloatType>;
 using DoubleDecoder = TypedDecoder<DoubleType>;
 using ByteArrayDecoder = TypedDecoder<ByteArrayType>;
+using LargeByteArrayDecoder = TypedDecoder<LargeByteArrayType>;
 class FLBADecoder;
 
 template <typename T>
@@ -140,15 +142,32 @@ template <>
 struct EncodingTraits<ByteArrayType> {
   using Encoder = ByteArrayEncoder;
   using Decoder = ByteArrayDecoder;
+  using BinaryBuilder = ::arrow::BinaryBuilder;
 
   /// \brief Internal helper class for decoding BYTE_ARRAY data where we can
   /// overflow the capacity of a single arrow::BinaryArray
   struct Accumulator {
-    std::unique_ptr<::arrow::BinaryBuilder> builder;
+    std::unique_ptr<BinaryBuilder> builder;
     std::vector<std::shared_ptr<::arrow::Array>> chunks;
   };
   using ArrowType = ::arrow::BinaryType;
   using DictAccumulator = ::arrow::Dictionary32Builder<::arrow::BinaryType>;
+};
+
+template <>
+struct EncodingTraits<LargeByteArrayType> {
+  using Encoder = LargeByteArrayEncoder;
+  using Decoder = LargeByteArrayDecoder;
+  using BinaryBuilder = ::arrow::LargeBinaryBuilder;
+
+  /// \brief Internal helper class for decoding BYTE_ARRAY data where we can
+  /// overflow the capacity of a single arrow::BinaryArray
+  struct Accumulator {
+    std::unique_ptr<BinaryBuilder> builder;
+    std::vector<std::shared_ptr<::arrow::Array>> chunks;
+  };
+  using ArrowType = ::arrow::LargeBinaryType;
+  using DictAccumulator = ::arrow::Dictionary32Builder<::arrow::LargeBinaryType>;
 };
 
 template <>
@@ -437,14 +456,16 @@ std::unique_ptr<typename EncodingTraits<DType>::Encoder> MakeTypedEncoder(
 PARQUET_EXPORT
 std::unique_ptr<Decoder> MakeDecoder(
     Type::type type_num, Encoding::type encoding, const ColumnDescriptor* descr = NULLPTR,
-    ::arrow::MemoryPool* pool = ::arrow::default_memory_pool());
+    ::arrow::MemoryPool* pool = ::arrow::default_memory_pool(),
+    bool use_large_binary_variants = false);
 
 namespace detail {
 
 PARQUET_EXPORT
 std::unique_ptr<Decoder> MakeDictDecoder(Type::type type_num,
                                          const ColumnDescriptor* descr,
-                                         ::arrow::MemoryPool* pool);
+                                         ::arrow::MemoryPool* pool,
+                                         bool use_large_binary_variants);
 
 }  // namespace detail
 
@@ -453,7 +474,8 @@ std::unique_ptr<DictDecoder<DType>> MakeDictDecoder(
     const ColumnDescriptor* descr = NULLPTR,
     ::arrow::MemoryPool* pool = ::arrow::default_memory_pool()) {
   using OutType = DictDecoder<DType>;
-  auto decoder = detail::MakeDictDecoder(DType::type_num, descr, pool);
+  auto decoder = detail::MakeDictDecoder(DType::type_num, descr, pool,
+                                         std::is_same_v<DType, LargeByteArrayType>);
   return std::unique_ptr<OutType>(dynamic_cast<OutType*>(decoder.release()));
 }
 
@@ -462,7 +484,9 @@ std::unique_ptr<typename EncodingTraits<DType>::Decoder> MakeTypedDecoder(
     Encoding::type encoding, const ColumnDescriptor* descr = NULLPTR,
     ::arrow::MemoryPool* pool = ::arrow::default_memory_pool()) {
   using OutType = typename EncodingTraits<DType>::Decoder;
-  std::unique_ptr<Decoder> base = MakeDecoder(DType::type_num, encoding, descr, pool);
+
+  std::unique_ptr<Decoder> base = MakeDecoder(DType::type_num, encoding, descr, pool,
+                                              std::is_same_v<DType, LargeByteArrayType>);
   return std::unique_ptr<OutType>(dynamic_cast<OutType*>(base.release()));
 }
 

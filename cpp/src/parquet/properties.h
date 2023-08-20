@@ -833,7 +833,8 @@ class PARQUET_EXPORT ArrowReaderProperties {
         batch_size_(kArrowDefaultBatchSize),
         pre_buffer_(false),
         cache_options_(::arrow::io::CacheOptions::Defaults()),
-        coerce_int96_timestamp_unit_(::arrow::TimeUnit::NANO) {}
+        coerce_int96_timestamp_unit_(::arrow::TimeUnit::NANO),
+        use_large_binary_variants_(false) {}
 
   /// \brief Set whether to use the IO thread pool to parse columns in parallel.
   ///
@@ -904,6 +905,14 @@ class PARQUET_EXPORT ArrowReaderProperties {
     return coerce_int96_timestamp_unit_;
   }
 
+  /// Set whether to use large binary variants for binary data
+  /// (default is false).
+  void set_use_large_binary_variants(bool use_large_binary_variants) {
+    use_large_binary_variants_ = use_large_binary_variants;
+  }
+  /// Return whether use large binary variants is enabled.
+  bool use_large_binary_variants() const { return use_large_binary_variants_; }
+
  private:
   bool use_threads_;
   std::unordered_set<int> read_dict_indices_;
@@ -912,6 +921,7 @@ class PARQUET_EXPORT ArrowReaderProperties {
   ::arrow::io::IOContext io_context_;
   ::arrow::io::CacheOptions cache_options_;
   ::arrow::TimeUnit::type coerce_int96_timestamp_unit_;
+  bool use_large_binary_variants_;
 };
 
 /// EXPERIMENTAL: Constructs the default ArrowReaderProperties

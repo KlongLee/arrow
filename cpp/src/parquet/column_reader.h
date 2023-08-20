@@ -321,7 +321,8 @@ class PARQUET_EXPORT RecordReader {
   static std::shared_ptr<RecordReader> Make(
       const ColumnDescriptor* descr, LevelInfo leaf_info,
       ::arrow::MemoryPool* pool = ::arrow::default_memory_pool(),
-      bool read_dictionary = false, bool read_dense_for_nullable = false);
+      bool read_dictionary = false, bool read_dense_for_nullable = false,
+      bool use_large_binary_variants = false);
 
   virtual ~RecordReader() = default;
 
