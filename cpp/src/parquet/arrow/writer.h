@@ -91,10 +91,26 @@ class PARQUET_EXPORT FileWriter {
 
   /// \brief Write a Table to Parquet.
   ///
+  /// If `use_buffering` is false, then any pending row group is closed
+  /// at the beginning and at the end of this call.
+  /// If `use_buffering` is true, this function reuses an existing
+  /// buffered row group until the chunk size is met, and leaves
+  /// the last row group open for further writes.
+  /// It is recommended to set `use_buffering` to true to minimize
+  /// the number of row groups, especially when calling `WriteTable`
+  /// with small tables.
+  ///
+  /// WARNING: If you are writing multiple files in parallel in the same
+  /// executor, deadlock may occur if ArrowWriterProperties::use_threads
+  /// is set to true to write columns in parallel. Please disable use_threads
+  /// option in this case.
+  ///
   /// \param table Arrow table to write.
   /// \param chunk_size maximum number of rows to write per row group.
-  virtual ::arrow::Status WriteTable(
-      const ::arrow::Table& table, int64_t chunk_size = DEFAULT_MAX_ROW_GROUP_LENGTH) = 0;
+  /// \param use_buffering Whether to potentially buffer data.
+  virtual ::arrow::Status WriteTable(const ::arrow::Table& table,
+                                     int64_t chunk_size = DEFAULT_MAX_ROW_GROUP_LENGTH,
+                                     bool use_buffering = false) = 0;
 
   /// \brief Start a new row group.
   ///
