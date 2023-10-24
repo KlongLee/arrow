@@ -33,8 +33,8 @@
 #undef NOEXCEPT
 #endif
 
-namespace arrow {
-namespace util {
+namespace arrow::util {
+
 namespace internal {
 
 // Copyright (c) 2008-2010 Bjoern Hoehrmann <bjoern@hoehrmann.de>
@@ -192,5 +192,5 @@ Result<std::u16string> UTF8StringToUTF16(std::string_view source) {
   }
 }
 
-}  // namespace util
-}  // namespace arrow
+}  // namespace arrow::util
+
