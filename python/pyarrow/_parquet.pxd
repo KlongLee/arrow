@@ -23,7 +23,7 @@ from pyarrow.includes.libarrow cimport (CChunkedArray, CScalar, CSchema, CStatus
                                         CTable, CMemoryPool, CBuffer,
                                         CKeyValueMetadata,
                                         CRandomAccessFile, COutputStream,
-                                        TimeUnit, CRecordBatchReader)
+                                        TimeUnit, CRecordBatchReader, CRecordBatch)
 from pyarrow.lib cimport _Weakrefable
 
 
@@ -540,6 +540,7 @@ cdef extern from "parquet/arrow/writer.h" namespace "parquet::arrow" nogil:
         CStatus WriteTable(const CTable& table, int64_t chunk_size)
         CStatus NewRowGroup(int64_t chunk_size)
         CStatus Close()
+        CStatus WriteRecordBatch(const CRecordBatch& batch)
 
         const shared_ptr[CFileMetaData] metadata() const
 
