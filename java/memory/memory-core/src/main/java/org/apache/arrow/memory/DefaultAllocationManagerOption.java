@@ -56,6 +56,11 @@ public class DefaultAllocationManagerOption {
     Unsafe,
 
     /**
+     * (Experimental) java.lang.foreign based allocation manager.
+     */
+    Foreign,
+
+    /**
      * Unknown type.
      */
     Unknown,
@@ -93,6 +98,9 @@ public class DefaultAllocationManagerOption {
       case Unsafe:
         DEFAULT_ALLOCATION_MANAGER_FACTORY = getUnsafeFactory();
         break;
+      case Foreign:
+        DEFAULT_ALLOCATION_MANAGER_FACTORY = getForeignFactory();
+        break;
       case Unknown:
         LOGGER.info("allocation manager type not specified, using netty as the default type");
         DEFAULT_ALLOCATION_MANAGER_FACTORY = getFactory(CheckAllocator.check());
@@ -128,6 +136,15 @@ public class DefaultAllocationManagerOption {
     } catch (RuntimeException e) {
       throw new RuntimeException("Please add arrow-memory-netty to your classpath," +
           " No DefaultAllocationManager found to instantiate an NettyAllocationManager", e);
+    }
+  }
+
+  private static AllocationManager.Factory getForeignFactory() {
+    try {
+      return getFactory("org.apache.arrow.memory.JavaForeignAllocationManager");
+    } catch (RuntimeException e) {
+      throw new RuntimeException("Please add arrow-memory-foreign to your classpath," +
+          " No DefaultAllocationManager found to instantiate an JavaForeignAllocationManager", e);
     }
   }
 }

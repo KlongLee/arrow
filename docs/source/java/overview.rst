@@ -44,6 +44,9 @@ but some modules are JNI bindings to the C++ library.
    * - arrow-memory-netty
      - Memory management implementation based on Netty.
      - Native
+   * - arrow-memory-foreign
+     - (Experimental) Memory management implementation based on java.lang.foreign. Not released, can only be built from source.
+     - Native
    * - arrow-vector
      - An off-heap reference implementation for Arrow columnar data format.
      - Native
