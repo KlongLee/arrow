@@ -120,7 +120,13 @@ set ARROW_HOME=C:\arrow-dist
 set CMAKE_PREFIX_PATH=C:\arrow-dist
 
 pushd C:\arrow\python
-@REM bundle the msvc runtime
-cp "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.16.27012\x64\Microsoft.VC141.CRT\msvcp140.dll" pyarrow\
+@REM build wheel
 python setup.py bdist_wheel || exit /B 1
+
+@REM Repair the wheel with delvewheel
+pip install delvewheel || exit /B 1
+for /f %%i in ('dir dist\pyarrow-*.whl /B') do set WHEEL_NAME=dist\%%i || exit /B 1
+echo "Wheel name: %WHEEL_NAME%"
+delvewheel repair %WHEEL_NAME% --add-path C:\arrow\python\build\bdist.win-amd64\wheel\pyarrow -w repaired_wheels || exit /B 1
+delvewheel show %WHEEL_NAME% || exit /B 1
 popd
