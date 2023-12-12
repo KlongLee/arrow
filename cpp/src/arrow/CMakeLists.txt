@@ -362,7 +362,6 @@ set(ARROW_SRCS
     device.cc
     extension_type.cc
     extension/uuid.cc
-    memory_pool.cc
     pretty_print.cc
     record_batch.cc
     result.cc
@@ -880,7 +879,6 @@ endif()
 if(ARROW_JSON)
   arrow_add_object_library(ARROW_JSON
                            extension/fixed_shape_tensor.cc
-                           extension/uuid_array.cc
                            json/options.cc
                            json/chunked_builder.cc
                            json/chunker.cc
