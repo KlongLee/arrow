@@ -81,7 +81,7 @@ namespace Apache.Arrow.Ipc
 
             public IReadOnlyList<Buffer> Buffers => _buffers;
 
-            public int TotalLength { get; private set; }
+            public long TotalLength { get; private set; }
 
             public ArrowRecordBatchFlatBufferBuilder()
             {
@@ -210,7 +210,7 @@ namespace Apache.Arrow.Ipc
 
             private Buffer CreateBuffer(ArrowBuffer buffer)
             {
-                int offset = TotalLength;
+                int offset = checked((int)TotalLength);
 
                 int paddedLength = checked((int)BitUtility.RoundUpToMultipleOf8(buffer.Length));
                 TotalLength += paddedLength;
@@ -819,7 +819,7 @@ namespace Apache.Arrow.Ipc
         /// The number of bytes written to the stream.
         /// </returns>
         private protected long WriteMessage<T>(
-            Flatbuf.MessageHeader headerType, Offset<T> headerOffset, int bodyLength)
+            Flatbuf.MessageHeader headerType, Offset<T> headerOffset, long bodyLength)
             where T : struct
         {
             Offset<Flatbuf.Message> messageOffset = Flatbuf.Message.CreateMessage(
@@ -849,7 +849,7 @@ namespace Apache.Arrow.Ipc
         /// The number of bytes written to the stream.
         /// </returns>
         private protected virtual async ValueTask<long> WriteMessageAsync<T>(
-            Flatbuf.MessageHeader headerType, Offset<T> headerOffset, int bodyLength,
+            Flatbuf.MessageHeader headerType, Offset<T> headerOffset, long bodyLength,
             CancellationToken cancellationToken)
             where T : struct
         {
