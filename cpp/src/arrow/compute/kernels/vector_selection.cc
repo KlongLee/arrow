@@ -44,6 +44,7 @@
 #include "arrow/util/bit_util.h"
 #include "arrow/util/bitmap_ops.h"
 #include "arrow/util/bitmap_reader.h"
+#include "arrow/util/checked_cast.h"
 #include "arrow/util/int_util.h"
 
 namespace arrow {
