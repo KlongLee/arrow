@@ -2468,18 +2468,18 @@ cdef extern from "arrow/compute/api.h" namespace "arrow::compute" nogil:
         CNullPlacement null_placement
 
     cdef cppclass CSortKey" arrow::compute::SortKey":
-        CSortKey(CFieldRef target, CSortOrder order)
+        CSortKey(CFieldRef target, CSortOrder order, CNullPlacement null_placement)
         CFieldRef target
         CSortOrder order
+        CNullPlacement null_placement
 
     cdef cppclass COrdering" arrow::compute::Ordering":
-        COrdering(vector[CSortKey] sort_keys, CNullPlacement null_placement)
+        COrdering(vector[CSortKey] sort_keys)
 
     cdef cppclass CSortOptions \
             "arrow::compute::SortOptions"(CFunctionOptions):
-        CSortOptions(vector[CSortKey] sort_keys, CNullPlacement)
+        CSortOptions(vector[CSortKey] sort_keys)
         vector[CSortKey] sort_keys
-        CNullPlacement null_placement
 
     cdef cppclass CSelectKOptions \
             "arrow::compute::SelectKOptions"(CFunctionOptions):
@@ -2552,10 +2552,8 @@ cdef extern from "arrow/compute/api.h" namespace "arrow::compute" nogil:
 
     cdef cppclass CRankOptions \
             "arrow::compute::RankOptions"(CFunctionOptions):
-        CRankOptions(vector[CSortKey] sort_keys, CNullPlacement,
-                     CRankOptionsTiebreaker tiebreaker)
+        CRankOptions(vector[CSortKey] sort_keys, CRankOptionsTiebreaker tiebreaker)
         vector[CSortKey] sort_keys
-        CNullPlacement null_placement
         CRankOptionsTiebreaker tiebreaker
 
     cdef enum DatumType" arrow::Datum::type":

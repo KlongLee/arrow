@@ -1082,7 +1082,7 @@ cdef class ChunkedArray(_PandasConvertible):
         """
         return _pc().drop_null(self)
 
-    def sort(self, order="ascending", **kwargs):
+    def sort(self, order="ascending", null_placement="at_end", **kwargs):
         """
         Sort the ChunkedArray
 
@@ -1091,6 +1091,9 @@ cdef class ChunkedArray(_PandasConvertible):
         order : str, default "ascending"
             Which order to sort values in.
             Accepted values are "ascending", "descending".
+        null_placement : str, default "at_end"
+            Whether nulls and NaNs are placed at the start or at the end.
+            Accepted values are "at_end", "at_start".
         **kwargs : dict, optional
             Additional sorting options.
             As allowed by :class:`SortOptions`
@@ -1101,7 +1104,7 @@ cdef class ChunkedArray(_PandasConvertible):
         """
         indices = _pc().sort_indices(
             self,
-            options=_pc().SortOptions(sort_keys=[("", order)], **kwargs)
+            options=_pc().SortOptions(sort_keys=[("", order, null_placement)], **kwargs)
         )
         return self.take(indices)
 
@@ -1923,11 +1926,13 @@ cdef class _Tabular(_PandasConvertible):
 
         Parameters
         ----------
-        sorting : str or list[tuple(name, order)]
+        sorting : str or list[tuple(name, order, null_placement)]
             Name of the column to use to sort (ascending), or
             a list of multiple sorting conditions where
             each entry is a tuple with column name
-            and sorting order ("ascending" or "descending")
+            and sorting order ("ascending" or "descending") 
+            and nulls and NaNs are placed 
+            at the start or at the end ("at_start" or "at_end")
         **kwargs : dict, optional
             Additional sorting options.
             As allowed by :class:`SortOptions`
@@ -1959,7 +1964,7 @@ cdef class _Tabular(_PandasConvertible):
         animal: [["Brittle stars","Centipede","Dog","Flamingo","Horse","Parrot"]]
         """
         if isinstance(sorting, str):
-            sorting = [(sorting, "ascending")]
+            sorting = [(sorting, "ascending", "at_end")]
 
         indices = _pc().sort_indices(
             self,
