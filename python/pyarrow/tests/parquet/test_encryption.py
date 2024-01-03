@@ -530,3 +530,45 @@ def test_encrypted_parquet_loop(tempdir, data_table, basic_encryption_config):
             path, decryption_properties=file_decryption_properties)
         result_table = result.read(use_threads=True)
         assert data_table.equals(result_table)
+
+
+def test_encrypted_parquet_read_table(tempdir, data_table, basic_encryption_config):
+    """Write an encrypted parquet then read it back using read_table."""
+    path = tempdir / 'encrypted_table_read_table.parquet'
+
+    # Encryption configuration
+    encryption_config = basic_encryption_config
+
+    # KMS Connection Configuration
+    kms_connection_config = pe.KmsConnectionConfig(
+        custom_kms_conf={
+            FOOTER_KEY_NAME: FOOTER_KEY.decode("UTF-8"),
+            COL_KEY_NAME: COL_KEY.decode("UTF-8"),
+        }
+    )
+
+    def kms_factory(kms_connection_configuration):
+        return InMemoryKmsClient(kms_connection_configuration)
+
+    # create our CryptoFactory
+    crypto_factory = pe.CryptoFactory(kms_factory)
+
+    # Write the encrypted parquet file
+    write_encrypted_parquet(path, data_table, encryption_config,
+                            kms_connection_config, crypto_factory)
+
+    # Setup decryption configuration
+    decryption_config = pe.DecryptionConfiguration(
+        cache_lifetime=timedelta(minutes=5.0))
+
+    # Setup file decryption properties
+    file_decryption_properties = crypto_factory.file_decryption_properties(
+        kms_connection_config, decryption_config)
+
+    assert file_decryption_properties is not None
+
+    # Read the encrypted parquet file using read_table
+    result_table = pq.read_table(path, decryption_properties=file_decryption_properties)
+
+    # Assert that the read table matches the original data
+    assert data_table.equals(result_table)
