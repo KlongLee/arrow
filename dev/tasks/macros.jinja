@@ -302,7 +302,7 @@ on:
     run: mkdir repo
   {% if get_win %}
   - name: Get windows binary
-    uses: actions/download-artifact@v3
+    uses: actions/download-artifact@v4
     with:
       name: r-lib__libarrow__bin__windows
       path: repo/libarrow/bin/windows
@@ -328,7 +328,7 @@ on:
     {% endfor %}
   {% endif %}
   - name: Get src pkg
-    uses: actions/download-artifact@v3
+    uses: actions/download-artifact@v4
     with:
       name: r-pkg__src__contrib
       path: repo/src/contrib
