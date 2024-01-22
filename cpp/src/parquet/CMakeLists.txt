@@ -156,6 +156,7 @@ set(PARQUET_SRCS
     arrow/writer.cc
     bloom_filter.cc
     bloom_filter_reader.cc
+    row_range.cc
     column_reader.cc
     column_scanner.cc
     column_writer.cc
@@ -354,6 +355,8 @@ add_parquet_test(reader-test
                  level_conversion_test.cc
                  column_scanner_test.cc
                  reader_test.cc
+                 range_reader_test.cc
+                 row_range_test.cc
                  stream_reader_test.cc
                  test_util.cc)
 
