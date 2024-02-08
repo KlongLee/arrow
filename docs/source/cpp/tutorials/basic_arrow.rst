@@ -50,7 +50,6 @@ Setup
 Before trying out Arrow, we need to fill in a couple gaps:
 
 1. We need to include necessary headers.
-
 2. ``A main()`` is needed to glue things together.
 
 Includes
@@ -141,7 +140,7 @@ Building int16 Arrays
 
 An :class:`ArrayBuilder` has its type specified at the time of declaration.
 Once this is done, it cannot have its type changed. We have to make a new one when we switch to year data, which
-requires a 16-bit integer at the minimum. Of course, there's an :class:`ArrayBuilder` for that.
+requires a 16-bit integer at the minimum. Of course, there’s an :class:`ArrayBuilder` for that.
 It uses the exact same methods, but with the new data type:
 
 .. literalinclude:: ../../../../cpp/examples/tutorial_examples/arrow_example.cc
@@ -155,7 +154,7 @@ Making a RecordBatch
 --------------------
 
 A columnar data format only really comes into play when you have a table.
-So, let's make one. The first kind we'll make is the :class:`RecordBatch` – this
+So, let’s make one. The first kind we’ll make is the :class:`RecordBatch` – this
 uses :class:`Arrays <Array>` internally, which means all data will be contiguous within each
 column, but any appending or concatenating will require copying. Making a :class:`RecordBatch`
 has two steps, given existing :class:`Arrays <Array>`:
