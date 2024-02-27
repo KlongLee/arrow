@@ -494,6 +494,56 @@ TYPED_TEST(TestLocalFS, StressGetFileInfoGenerator) {
   }
 }
 
+TYPED_TEST(TestLocalFS, NeedsExtendedFileInfo) {
+#ifdef _WIN32
+  ASSERT_OK(this->fs_->CreateDir("AB\\CD"));
+  CreateFile(this->fs_.get(), "AB\\ab", "data");
+#else
+  ASSERT_OK(this->fs_->CreateDir("AB/CD"));
+  CreateFile(this->fs_.get(), "AB/ab", "data");
+#endif
+
+  FileSelector selector;
+  selector.base_dir = "";
+  selector.needs_extended_file_info = false;
+  std::vector<FileInfo> infos;
+
+  ASSERT_OK_AND_ASSIGN(infos, this->fs_->GetFileInfo(selector));
+  ASSERT_EQ(infos.size(), 1);
+
+  AssertFileInfo(infos[0], "AB", FileType::Directory);
+
+  ASSERT_EQ(infos[0].size(), kNoSize);
+  ASSERT_EQ(infos[0].mtime(), kNoTime);
+
+  selector.recursive = true;
+  ASSERT_OK_AND_ASSIGN(infos, this->fs_->GetFileInfo(selector));
+  ASSERT_EQ(infos.size(), 3);
+
+  SortInfos(&infos);
+  AssertFileInfo(infos[0], "AB", FileType::Directory);
+#ifdef _WIN32
+  AssertFileInfo(infos[1], "AB\\CD", FileType::Directory);
+  AssertFileInfo(infos[2], "AB\\ab", FileType::File);
+#else
+  AssertFileInfo(infos[1], "AB/CD", FileType::Directory);
+  AssertFileInfo(infos[2], "AB/ab", FileType::File);
+#endif
+
+  for (FileInfo info : infos) {
+    ASSERT_EQ(info.size(), kNoSize);
+    ASSERT_EQ(info.mtime(), kNoTime);
+  }
+
+  // Invalid path
+#ifdef _WIN32
+  selector.base_dir = "\\foo\\bar\\baz\\";
+#else
+  selector.base_dir = "//foo//bar//baz//";
+#endif
+  ASSERT_RAISES(IOError, this->fs_->GetFileInfo(selector));
+}
+
 // TODO Should we test backslash paths on Windows?
 // SubTreeFileSystem isn't compatible with them.
 
