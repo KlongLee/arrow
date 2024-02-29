@@ -19,6 +19,9 @@
 Arrays
 ======
 
+Base classes
+============
+
 .. doxygenclass:: arrow::ArrayData
    :project: arrow_cpp
    :members:
@@ -71,7 +74,6 @@ Extension arrays
 .. doxygenclass:: arrow::ExtensionArray
    :members:
 
-
 Chunked Arrays
 ==============
 
@@ -79,6 +81,13 @@ Chunked Arrays
    :project: arrow_cpp
    :members:
 
+.. doxygenstruct:: arrow::ChunkLocation
+   :project: arrow_cpp
+   :members:
+
+.. doxygenclass:: arrow::ChunkResolver
+   :project: arrow_cpp
+   :members:
 
 Utilities
 =========
@@ -87,3 +96,15 @@ Utilities
    :project: arrow_cpp
    :members:
    :undoc-members:
+
+Aliases
+=======
+
+.. doxygentypedef:: arrow::ArrayDataVector
+   :project: arrow_cpp
+
+.. doxygentypedef:: arrow::ArrayVector
+   :project: arrow_cpp
+
+.. doxygentypedef:: arrow::ChunkedArrayVector
+   :project: arrow_cpp
