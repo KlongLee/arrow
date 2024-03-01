@@ -223,10 +223,16 @@ class NumPyConverter {
   Status Visit(const NullType& type) { return TypeNotImplemented(type.ToString()); }
 
   // NumPy ascii string arrays
+  template <typename T>
+  Status VisitBinary(T* builder);
   Status Visit(const BinaryType& type);
+  Status Visit(const LargeBinaryType& type);
 
   // NumPy unicode arrays
+  template <typename T>
+  Status VisitString(T* builder);
   Status Visit(const StringType& type);
+  Status Visit(const LargeStringType& type);
 
   Status Visit(const StructType& type);
 
@@ -551,24 +557,23 @@ inline Status NumPyConverter::ConvertData<Date64Type>(std::shared_ptr<Buffer>* d
 // Create 16MB chunks for binary data
 constexpr int32_t kBinaryChunksize = 1 << 24;
 
-Status NumPyConverter::Visit(const BinaryType& type) {
-  ::arrow::internal::ChunkedBinaryBuilder builder(kBinaryChunksize, pool_);
-
+template <typename T>
+Status NumPyConverter::VisitBinary(T* builder) {
   auto data = reinterpret_cast<const uint8_t*>(PyArray_DATA(arr_));
 
-  auto AppendNotNull = [&builder, this](const uint8_t* data) {
+  auto AppendNotNull = [builder, this](const uint8_t* data) {
     // This is annoying. NumPy allows strings to have nul-terminators, so
     // we must check for them here
     const size_t item_size =
         strnlen(reinterpret_cast<const char*>(data), static_cast<size_t>(itemsize_));
-    return builder.Append(data, static_cast<int32_t>(item_size));
+    return builder->Append(data, static_cast<int32_t>(item_size));
   };
 
   if (mask_ != nullptr) {
     Ndarray1DIndexer<uint8_t> mask_values(mask_);
     for (int64_t i = 0; i < length_; ++i) {
       if (mask_values[i]) {
-        RETURN_NOT_OK(builder.AppendNull());
+        RETURN_NOT_OK(builder->AppendNull());
       } else {
         RETURN_NOT_OK(AppendNotNull(data));
       }
@@ -581,12 +586,30 @@ Status NumPyConverter::Visit(const BinaryType& type) {
     }
   }
 
+  return Status::OK();
+}
+
+Status NumPyConverter::Visit(const BinaryType& type) {
+  ::arrow::internal::ChunkedBinaryBuilder builder(kBinaryChunksize, pool_);
+
+  RETURN_NOT_OK(VisitBinary(&builder));
+
   ArrayVector result;
   RETURN_NOT_OK(builder.Finish(&result));
   for (auto arr : result) {
     RETURN_NOT_OK(PushArray(arr->data()));
   }
   return Status::OK();
+}
+
+Status NumPyConverter::Visit(const LargeBinaryType& type) {
+  ::arrow::LargeBinaryBuilder builder(pool_);
+
+  RETURN_NOT_OK(VisitBinary(&builder));
+
+  std::shared_ptr<Array> result;
+  RETURN_NOT_OK(builder.Finish(&result));
+  return PushArray(result->data());
 }
 
 Status NumPyConverter::Visit(const FixedSizeBinaryType& type) {
@@ -628,8 +651,8 @@ namespace {
 // NumPy unicode is UCS4/UTF32 always
 constexpr int kNumPyUnicodeSize = 4;
 
-Status AppendUTF32(const char* data, int itemsize, int byteorder,
-                   ::arrow::internal::ChunkedStringBuilder* builder) {
+template <typename T>
+Status AppendUTF32(const char* data, int itemsize, int byteorder, T* builder) {
   // The binary \x00\x00\x00\x00 indicates a nul terminator in NumPy unicode,
   // so we need to detect that here to truncate if necessary. Yep.
   int actual_length = 0;
@@ -657,11 +680,8 @@ Status AppendUTF32(const char* data, int itemsize, int byteorder,
 
 }  // namespace
 
-Status NumPyConverter::Visit(const StringType& type) {
-  util::InitializeUTF8();
-
-  ::arrow::internal::ChunkedStringBuilder builder(kBinaryChunksize, pool_);
-
+template <typename T>
+Status NumPyConverter::VisitString(T* builder) {
   auto data = reinterpret_cast<const uint8_t*>(PyArray_DATA(arr_));
 
   char numpy_byteorder = dtype_->byteorder;
@@ -705,7 +725,7 @@ Status NumPyConverter::Visit(const StringType& type) {
   auto AppendNonNullValue = [&](const uint8_t* data) {
     if (is_binary_type) {
       if (ARROW_PREDICT_TRUE(util::ValidateUTF8(data, itemsize_))) {
-        return builder.Append(data, itemsize_);
+        return builder->Append(data, itemsize_);
       } else {
         return Status::Invalid("Encountered non-UTF8 binary value: ",
                                HexEncode(data, itemsize_));
@@ -713,7 +733,7 @@ Status NumPyConverter::Visit(const StringType& type) {
     } else {
       // is_unicode_type case
       return AppendUTF32(reinterpret_cast<const char*>(data), itemsize_, byteorder,
-                         &builder);
+                         builder);
     }
   };
 
@@ -721,7 +741,7 @@ Status NumPyConverter::Visit(const StringType& type) {
     Ndarray1DIndexer<uint8_t> mask_values(mask_);
     for (int64_t i = 0; i < length_; ++i) {
       if (mask_values[i]) {
-        RETURN_NOT_OK(builder.AppendNull());
+        RETURN_NOT_OK(builder->AppendNull());
       } else {
         RETURN_NOT_OK(AppendNonNullValue(data));
       }
@@ -734,11 +754,34 @@ Status NumPyConverter::Visit(const StringType& type) {
     }
   }
 
+  return Status::OK();
+}
+
+Status NumPyConverter::Visit(const StringType& type) {
+  util::InitializeUTF8();
+
+  ::arrow::internal::ChunkedStringBuilder builder(kBinaryChunksize, pool_);
+
+  RETURN_NOT_OK(VisitString(&builder));
+
   ArrayVector result;
   RETURN_NOT_OK(builder.Finish(&result));
   for (auto arr : result) {
     RETURN_NOT_OK(PushArray(arr->data()));
   }
+  return Status::OK();
+}
+
+Status NumPyConverter::Visit(const LargeStringType& type) {
+  util::InitializeUTF8();
+
+  ::arrow::LargeStringBuilder builder(pool_);
+
+  RETURN_NOT_OK(VisitString(&builder));
+
+  std::shared_ptr<Array> result;
+  RETURN_NOT_OK(builder.Finish(&result));
+  RETURN_NOT_OK(PushArray(result->data()));
   return Status::OK();
 }
 
