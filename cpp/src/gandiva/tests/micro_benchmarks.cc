@@ -20,6 +20,7 @@
 #include "arrow/memory_pool.h"
 #include "arrow/status.h"
 #include "arrow/testing/gtest_util.h"
+#include "arrow/testing/random.h"
 #include "arrow/type_fwd.h"
 #include "benchmark/benchmark.h"
 #include "gandiva/decimal_type_util.h"
@@ -34,6 +35,18 @@ using arrow::boolean;
 using arrow::int32;
 using arrow::int64;
 using arrow::utf8;
+
+using arrow::random::RandomArrayGenerator;
+
+int num_records = 1 * MILLION;
+int num_batches = 16 * THOUSAND;
+
+int32_t int32_t_min = std::numeric_limits<int32_t>::min();
+int32_t int32_t_max = std::numeric_limits<int32_t>::max();
+int64_t int64_t_min = std::numeric_limits<int64_t>::min();
+int64_t int64_t_max = std::numeric_limits<int64_t>::max();
+
+RandomArrayGenerator rag(0);
 
 static void TimedTestAdd3(benchmark::State& state) {
   // schema for input fields
@@ -58,18 +71,26 @@ static void TimedTestAdd3(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {sum_expr}, TestConfiguration(), &projector));
 
-  Int64DataGenerator data_generator;
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Int64(num_batches, int64_t_min, int64_t_max, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::Int64Type, int64_t>(
-      schema, evaluator, data_generator, pool_, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, num_records, num_batches, state);
   ASSERT_OK(status);
 }
 
 static void TimedTestBigNested(benchmark::State& state) {
   // schema for input fields
-  auto fielda = field("a", int32());
-  auto schema = arrow::schema({fielda});
+  auto field_a = field("a", int32());
+  auto schema = arrow::schema({field_a});
   auto pool_ = arrow::default_memory_pool();
 
   // output fields
@@ -86,7 +107,7 @@ static void TimedTestBigNested(benchmark::State& state) {
   //   190
   // else
   //   200
-  auto node_a = TreeExprBuilder::MakeField(fielda);
+  auto node_a = TreeExprBuilder::MakeField(field_a);
   auto top_node = TreeExprBuilder::MakeLiteral(200);
   for (int thresh = 190; thresh > 0; thresh -= 10) {
     auto literal = TreeExprBuilder::MakeLiteral(thresh);
@@ -101,11 +122,19 @@ static void TimedTestBigNested(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  BoundedInt32DataGenerator data_generator(250);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Int64(num_batches, 0, 250, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::Int32Type, int32_t>(
-      schema, evaluator, data_generator, pool_, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
@@ -124,11 +153,19 @@ static void TimedTestExtractYear(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  Int64DataGenerator data_generator;
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Int64(num_batches, int64_t_min, int64_t_max, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::Date64Type, int64_t>(
-      schema, evaluator, data_generator, pool_, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
@@ -151,22 +188,30 @@ static void TimedTestFilterAdd2(benchmark::State& state) {
   std::shared_ptr<Filter> filter;
   ASSERT_OK(Filter::Make(schema, condition, TestConfiguration(), &filter));
 
-  Int64DataGenerator data_generator;
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Int64(num_batches, int64_t_min, int64_t_max, 0));
+    }
+  }
+
   FilterEvaluator evaluator(filter);
 
   Status status = TimedEvaluate<arrow::Int64Type, int64_t>(
-      schema, evaluator, data_generator, pool_, MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
 static void TimedTestFilterLike(benchmark::State& state) {
   // schema for input fields
-  auto fielda = field("a", utf8());
-  auto schema = arrow::schema({fielda});
+  auto field_a = field("a", utf8());
+  auto schema = arrow::schema({field_a});
   auto pool_ = arrow::default_memory_pool();
 
   // build expression.
-  auto node_a = TreeExprBuilder::MakeField(fielda);
+  auto node_a = TreeExprBuilder::MakeField(field_a);
   auto pattern_node = TreeExprBuilder::MakeStringLiteral("%yellow%");
   auto like_yellow =
       TreeExprBuilder::MakeFunction("like", {node_a, pattern_node}, arrow::boolean());
@@ -175,11 +220,19 @@ static void TimedTestFilterLike(benchmark::State& state) {
   std::shared_ptr<Filter> filter;
   ASSERT_OK(Filter::Make(schema, condition, TestConfiguration(), &filter));
 
-  FastUtf8DataGenerator data_generator(32);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.String(num_batches, 0, 32, 0));
+    }
+  }
+
   FilterEvaluator evaluator(filter);
 
   Status status = TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool_, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
@@ -197,11 +250,19 @@ static void TimedTestCastFloatFromString(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  Utf8FloatDataGenerator data_generator;
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Float32String(num_batches, 0, 1, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
@@ -219,11 +280,19 @@ static void TimedTestCastIntFromString(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  Utf8IntDataGenerator data_generator;
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] = std::make_shared<ArrayPtr>(
+          rag.Int32String(num_batches, int32_t_min, int32_t_max, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
@@ -245,11 +314,19 @@ static void TimedTestAllocs(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  FastUtf8DataGenerator data_generator(64);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.String(num_batches, 64, 64, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool_, 1 * MILLION, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, num_records, num_batches, state);
   ASSERT_TRUE(status.ok());
 }
 
@@ -270,19 +347,27 @@ static void TimedTestOutputStringAllocs(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  FastUtf8DataGenerator data_generator(64);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.String(num_batches, 64, 64, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   ASSERT_OK((TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool_, 1 * MILLION, 16 * THOUSAND, state)));
+      schema, evaluator, arrays, pool_, num_records, num_batches, state)));
 }
 // following two tests are for benchmark optimization of
 // in expr. will be used in follow-up PRs to optimize in expr.
 
 static void TimedTestMultiOr(benchmark::State& state) {
   // schema for input fields
-  auto fielda = field("a", utf8());
-  auto schema = arrow::schema({fielda});
+  auto field_a = field("a", utf8());
+  auto schema = arrow::schema({field_a});
   auto pool_ = arrow::default_memory_pool();
 
   // output fields
@@ -290,12 +375,12 @@ static void TimedTestMultiOr(benchmark::State& state) {
 
   // build expression.
   // booleanOr(a = string1, a = string2, ..)
-  auto node_a = TreeExprBuilder::MakeField(fielda);
+  auto node_a = TreeExprBuilder::MakeField(field_a);
 
   NodeVector boolean_functions;
-  FastUtf8DataGenerator data_generator1(250);
   for (int thresh = 1; thresh <= 32; thresh++) {
-    auto literal = TreeExprBuilder::MakeStringLiteral(data_generator1.GenerateData());
+    auto literal =
+        TreeExprBuilder::MakeStringLiteral(rag.String(1, 0, 250, 0)->ToString());
     auto condition = TreeExprBuilder::MakeFunction("equal", {node_a, literal}, boolean());
     boolean_functions.push_back(condition);
   }
@@ -307,17 +392,25 @@ static void TimedTestMultiOr(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  FastUtf8DataGenerator data_generator(250);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.String(num_batches, 0, 250, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
   Status status = TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool_, 100 * THOUSAND, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, 100 * THOUSAND, 16 * THOUSAND, state);
   ASSERT_OK(status);
 }
 
 static void TimedTestInExpr(benchmark::State& state) {
   // schema for input fields
-  auto fielda = field("a", utf8());
-  auto schema = arrow::schema({fielda});
+  auto field_a = field("a", utf8());
+  auto schema = arrow::schema({field_a});
   auto pool_ = arrow::default_memory_pool();
 
   // output fields
@@ -325,12 +418,11 @@ static void TimedTestInExpr(benchmark::State& state) {
 
   // build expression.
   // a in (string1, string2, ..)
-  auto node_a = TreeExprBuilder::MakeField(fielda);
+  auto node_a = TreeExprBuilder::MakeField(field_a);
 
   std::unordered_set<std::string> values;
-  FastUtf8DataGenerator data_generator1(250);
-  for (int i = 1; i <= 32; i++) {
-    values.insert(data_generator1.GenerateData());
+  for (int thresh = 1; thresh <= 32; thresh++) {
+    values.insert(rag.String(1, 0, 250, 0)->ToString());
   }
   auto boolean_or = TreeExprBuilder::MakeInExpressionString(node_a, values);
   auto expr = TreeExprBuilder::MakeExpression(boolean_or, field_result);
@@ -339,11 +431,19 @@ static void TimedTestInExpr(benchmark::State& state) {
   std::shared_ptr<Projector> projector;
   ASSERT_OK(Projector::Make(schema, {expr}, TestConfiguration(), &projector));
 
-  FastUtf8DataGenerator data_generator(250);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.String(num_batches, 0, 250, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   Status status = TimedEvaluate<arrow::StringType, std::string>(
-      schema, evaluator, data_generator, pool_, 100 * THOUSAND, 16 * THOUSAND, state);
+      schema, evaluator, arrays, pool_, 100 * THOUSAND, 16 * THOUSAND, state);
 
   ASSERT_OK(status);
 }
@@ -381,12 +481,20 @@ static void DoDecimalAdd3(benchmark::State& state, int32_t precision, int32_t sc
   status = Projector::Make(schema, {sum_expr}, TestConfiguration(), &projector);
   EXPECT_TRUE(status.ok());
 
-  Decimal128DataGenerator data_generator(large);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Decimal128(decimal_type, num_batches, 0, 64, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   status = TimedEvaluate<arrow::Decimal128Type, arrow::Decimal128>(
-      schema, evaluator, data_generator, arrow::default_memory_pool(), 1 * MILLION,
-      16 * THOUSAND, state);
+      schema, evaluator, arrays, arrow::default_memory_pool(), 1 * MILLION, 16 * THOUSAND,
+      state);
   ASSERT_OK(status);
 }
 
@@ -412,12 +520,20 @@ static void DoDecimalAdd2(benchmark::State& state, int32_t precision, int32_t sc
   status = Projector::Make(schema, {sum}, TestConfiguration(), &projector);
   EXPECT_TRUE(status.ok());
 
-  Decimal128DataGenerator data_generator(large);
+  int num_fields = schema->num_fields();
+  std::shared_ptr<ArrayPtr> arrays[num_fields * NUM_BATCHES];
+  for (int i = 0; i < NUM_BATCHES; i++) {
+    for (int col = 0; col < num_fields; col++) {
+      arrays[col * NUM_BATCHES + i] =
+          std::make_shared<ArrayPtr>(rag.Decimal128(decimal_type, num_batches, 0, 64, 0));
+    }
+  }
+
   ProjectEvaluator evaluator(projector);
 
   status = TimedEvaluate<arrow::Decimal128Type, arrow::Decimal128>(
-      schema, evaluator, data_generator, arrow::default_memory_pool(), 1 * MILLION,
-      16 * THOUSAND, state);
+      schema, evaluator, arrays, arrow::default_memory_pool(), 1 * MILLION, 16 * THOUSAND,
+      state);
   ASSERT_OK(status);
 }
 
