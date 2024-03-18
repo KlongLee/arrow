@@ -89,10 +89,7 @@ repos:
       - id: sphinx-lint
         files: ^docs/
         args:
-          [
-            "--disable",
-            "all",
-            "--enable",
-            "trailing-whitespace,missing-final-newline",
-            "docs",
-          ]
+          - --disable
+          - all
+          - --enable
+          - trailing-whitespace,missing-final-newline
