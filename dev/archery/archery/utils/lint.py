@@ -437,9 +437,8 @@ def docker_linter(src):
 
 
 class SphinxLint(Command):
-    def __init__(self, src, path=None, sphinx_lint_bin=None, disable=None, enable=None):
+    def __init__(self, src, sphinx_lint_bin=None, disable=None, enable=None):
         self.src = src
-        self.path = path
         self.bin = default_bin(sphinx_lint_bin, "sphinx-lint")
         self.disable = disable or "all"
         self.enable = enable
@@ -455,21 +454,17 @@ class SphinxLint(Command):
         if self.enable:
             args.extend(["--enable", self.enable])
 
-        if self.path is not None:
-            args.extend([self.path])
-        else:
-            args.extend([docs_path])
+        args.extend([docs_path])
 
         return self.run(*args, check=check)
 
 
-def docs_linter(src, path=None):
+def docs_linter(src):
     """Run sphinx-lint on docs."""
     logger.info("Running docs linter (sphinx-lint)")
 
     sphinx_lint = SphinxLint(
         src,
-        path=path,
         disable="all",
         enable="trailing-whitespace,missing-final-newline"
     )
@@ -481,7 +476,7 @@ def docs_linter(src, path=None):
     yield LintResult.from_cmd(sphinx_lint.lint())
 
 
-def linter(src, fix=False, path=None, *, clang_format=False, cpplint=False,
+def linter(src, fix=False, *, clang_format=False, cpplint=False,
            clang_tidy=False, iwyu=False, iwyu_all=False,
            python=False, numpydoc=False, cmake_format=False, rat=False,
            r=False, docker=False, docs=False):
@@ -527,7 +522,7 @@ def linter(src, fix=False, path=None, *, clang_format=False, cpplint=False,
             results.extend(docker_linter(src))
 
         if docs:
-            results.extend(docs_linter(src, path))
+            results.extend(docs_linter(src))
 
         # Raise error if one linter failed, ensuring calling code can exit with
         # non-zero.
