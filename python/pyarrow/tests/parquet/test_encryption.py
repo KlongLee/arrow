@@ -183,14 +183,14 @@ def test_encrypted_parquet_write_read_wrong_key(tempdir, data_table):
         cache_lifetime=timedelta(minutes=5.0),
         data_key_length_bits=256)
 
-    write_encrypted_file(path, data_table, FOOTER_KEY_NAME,
-                         COL_KEY_NAME, encryption_config)
+    write_encrypted_file(path, data_table, FOOTER_KEY_NAME, COL_KEY_NAME,
+                         FOOTER_KEY, COL_KEY, encryption_config)
 
     verify_file_encrypted(path)
 
     wrong_kms_connection_config, wrong_crypto_factory = setup_encryption_environment({
-        FOOTER_KEY_NAME: COL_KEY.decode("UTF-8"),
-        COL_KEY_NAME: FOOTER_KEY.decode("UTF-8"),
+        FOOTER_KEY_NAME: COL_KEY.decode("UTF-8"),  # Intentionally wrong
+        COL_KEY_NAME: FOOTER_KEY.decode("UTF-8"),  # Intentionally wrong
     })
 
     decryption_config = pe.DecryptionConfiguration(
