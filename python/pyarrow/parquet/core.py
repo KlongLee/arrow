@@ -1300,7 +1300,7 @@ Examples
             )
 
         # check for single fragment dataset
-        buffer_reader = None
+        single_file = None
         self._base_dir = None
         if not isinstance(path_or_paths, list):
             if _is_path_like(path_or_paths):
@@ -1316,12 +1316,12 @@ Examples
                 if finfo.type == FileType.Directory:
                     self._base_dir = path_or_paths
             else:
-                buffer_reader = path_or_paths
+                single_file = path_or_paths
 
         parquet_format = ds.ParquetFileFormat(**read_options)
 
-        if buffer_reader is not None:
-            fragment = parquet_format.make_fragment(buffer_reader, filesystem)
+        if single_file is not None:
+            fragment = parquet_format.make_fragment(single_file, filesystem)
 
             self._dataset = ds.FileSystemDataset(
                 [fragment], schema=schema or fragment.physical_schema,
