@@ -155,7 +155,7 @@ Making a RecordBatch
 --------------------
 
 A columnar data format only really comes into play when you have a table.
-So, let’s make one. The first kind we’ll make is the :class:`RecordBatch` – this
+So, let's make one. The first kind we'll make is the :class:`RecordBatch` – this
 uses :class:`Arrays <Array>` internally, which means all data will be contiguous within each
 column, but any appending or concatenating will require copying. Making a :class:`RecordBatch`
 has two steps, given existing :class:`Arrays <Array>`:
