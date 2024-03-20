@@ -141,7 +141,7 @@ Building int16 Arrays
 
 An :class:`ArrayBuilder` has its type specified at the time of declaration.
 Once this is done, it cannot have its type changed. We have to make a new one when we switch to year data, which
-requires a 16-bit integer at the minimum. Of course, there’s an :class:`ArrayBuilder` for that.
+requires a 16-bit integer at the minimum. Of course, there's an :class:`ArrayBuilder` for that.
 It uses the exact same methods, but with the new data type:
 
 .. literalinclude:: ../../../../cpp/examples/tutorial_examples/arrow_example.cc
