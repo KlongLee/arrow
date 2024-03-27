@@ -48,16 +48,16 @@ binary artifacts see the following guidelines:
 
    # this will create and automatically clean up a temporary directory for the verification environment and will run the source verification
    TEST_DEFAULT=0 TEST_SOURCE=1 verify-release-candidate.sh $VERSION $RC_NUM
-   
+
    # this will create and automatically clean up a temporary directory for the verification environment and will run the binary verification
    TEST_DEFAULT=0 TEST_BINARIES=1 dev/release/verify-release-candidate.sh $VERSION $RC_NUM
-   
+
    # to verify only certain implementations use the TEST_DEFAULT=0 and TEST_* variables
    # here are a couple of examples, but see the source code for the available options
    TEST_DEFAULT=0 TEST_CPP=1 verify-release-candidate.sh $VERSION $RC_NUM  # only C++ tests
    TEST_DEFAULT=0 TEST_CPP=1 TEST_PYTHON=1 verify-release-candidate.sh $VERSION $RC_NUM  # C++ and Python tests
    TEST_DEFAULT=0 TEST_INTEGRATION_CPP=1 TEST_INTEGRATION_JAVA=1 verify-release-candidate.sh $VERSION $RC_NUM  # C++ and Java integration tests
-   
+
    # to verify certain binaries use the TEST_* variables as:
    TEST_DEFAULT=0 TEST_WHEELS=1 verify-release-candidate.sh $VERSION $RC_NUM  # only Wheels
    TEST_DEFAULT=0 TEST_APT=1 verify-release-candidate.sh $VERSION $RC_NUM  # only APT packages

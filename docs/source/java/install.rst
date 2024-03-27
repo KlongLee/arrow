@@ -61,7 +61,7 @@ Modifying the command above for Flight:
    $ env _JAVA_OPTIONS="--add-reads=org.apache.arrow.flight.core=ALL-UNNAMED --add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED" java -jar ...
 
 Otherwise, you may see errors like ``java.lang.IllegalAccessError: superclass access check failed: class
-org.apache.arrow.flight.ArrowMessage$ArrowBufRetainingCompositeByteBuf (in module org.apache.arrow.flight.core) 
+org.apache.arrow.flight.ArrowMessage$ArrowBufRetainingCompositeByteBuf (in module org.apache.arrow.flight.core)
 cannot access class io.netty.buffer.CompositeByteBuf (in unnamed module ...) because module
 org.apache.arrow.flight.core does not read unnamed module ...
 
@@ -74,8 +74,8 @@ Modifying the command above for arrow-memory:
    # Indirectly via environment variables
    $ env _JAVA_OPTIONS="--add-opens=java.base/java.nio=org.apache.arrow.dataset,org.apache.arrow.memory.core,ALL-UNNAMED" java -jar ...
 
-Otherwise you may see errors such as ``java.lang.RuntimeException: java.lang.reflect.InaccessibleObjectException: 
-Unable to make static void java.nio.Bits.reserveMemory(long,long) accessible: module 
+Otherwise you may see errors such as ``java.lang.RuntimeException: java.lang.reflect.InaccessibleObjectException:
+Unable to make static void java.nio.Bits.reserveMemory(long,long) accessible: module
 java.base does not "opens java.nio" to module org.apache.arrow.dataset``
 
 If using Maven and Surefire for unit testing, :ref:`this argument must

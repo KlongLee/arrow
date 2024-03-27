@@ -260,6 +260,7 @@ lint_checks = [
               "Check all sources files for license texts via Apache RAT."),
     LintCheck('r', "Lint R files."),
     LintCheck('docker', "Lint Dockerfiles with hadolint."),
+    LintCheck('docs', "Lint docs with sphinx-lint."),
 ]
 
 
