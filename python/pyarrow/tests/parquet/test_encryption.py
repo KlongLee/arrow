@@ -539,6 +539,12 @@ def test_read_with_deleted_crypto_factory(tempdir, data_table, basic_encryption_
                             kms_connection_config, encryption_crypto_factory)
     verify_file_encrypted(path)
 
+    # Setup for reading with decryption properties
+    kms_connection_config, crypto_factory = setup_encryption_environment({
+        FOOTER_KEY_NAME: FOOTER_KEY.decode("UTF-8"),
+        COL_KEY_NAME: COL_KEY.decode("UTF-8"),
+    })
+
     # Use a local function to get decryption properties, so the crypto factory that
     # creates the properties will be deleted after it returns.
     def get_decryption_properties():
