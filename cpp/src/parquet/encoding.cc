@@ -3988,4 +3988,7 @@ std::unique_ptr<Decoder> MakeDictDecoder(Type::type type_num,
 }
 
 }  // namespace detail
+
+Encoding::type ChooseFallbackEncoding() { return Encoding::PLAIN; }
+
 }  // namespace parquet

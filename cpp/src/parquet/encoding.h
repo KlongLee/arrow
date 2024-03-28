@@ -466,4 +466,6 @@ std::unique_ptr<typename EncodingTraits<DType>::Decoder> MakeTypedDecoder(
   return std::unique_ptr<OutType>(dynamic_cast<OutType*>(base.release()));
 }
 
+Encoding::type ChooseFallbackEncoding();
+
 }  // namespace parquet
