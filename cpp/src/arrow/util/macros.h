@@ -36,28 +36,53 @@
   TypeName& operator=(TypeName&&) = default
 #endif
 
+// With ARROW_PREDICT_FALSE, GCC and clang can be told that a certain branch is
+// not likely to be taken (for instance, a CHECK failure), and use that information in
+// static analysis. Giving the compiler this information can affect the generated code
+// layout in the absence of better information (i.e. -fprofile-arcs). [1] explains how
+// this feature can be used to improve code generation. It was written as a positive
+// comment to a negative article about the use of these annotations.
+//
+// ARROW_COMPILER_ASSUME allows the compiler to assume that a given expression
+// is true, without evaluating it, and to optimise based on this assumption [2].
+// If this condition is violated at runtime, the behavior is undefined. This can
+// be useful to generate both faster and smaller code in compute kernels. Different
+// optimisers are likely to react differently to this annotation. It should be used
+// with care [3] when we can prove by some means that the assumption is guaranteed
+// to always hold.
+//
+// [1] https://lobste.rs/s/uwgtkt/don_t_use_likely_unlikely_attributes#c_xi3wmc
+// [2] "Portable assumptions"
+//     https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1774r4.pdf
+// [3] "Assertions Are Pessimistic, Assumptions Are Optimistic"
+//     https://blog.regehr.org/archives/1096
 #define ARROW_UNUSED(x) (void)(x)
 #define ARROW_ARG_UNUSED(x)
-//
-// GCC can be told that a certain branch is not likely to be taken (for
-// instance, a CHECK failure), and use that information in static analysis.
-// Giving it this information can help it optimize for the common case in
-// the absence of better information (ie. -fprofile-arcs).
-//
-#if defined(__GNUC__)
-#define ARROW_PREDICT_FALSE(x) (__builtin_expect(!!(x), 0))
-#define ARROW_PREDICT_TRUE(x) (__builtin_expect(!!(x), 1))
+#if defined(__GNUC__)  // GCC and clang
 #define ARROW_NORETURN __attribute__((noreturn))
 #define ARROW_NOINLINE __attribute__((noinline))
 #define ARROW_FORCE_INLINE __attribute__((always_inline))
+#define ARROW_PREDICT_FALSE(x) (__builtin_expect(!!(x), 0))
+#define ARROW_PREDICT_TRUE(x) (__builtin_expect(!!(x), 1))
 #define ARROW_PREFETCH(addr) __builtin_prefetch(addr)
-#elif defined(_MSC_VER)
+#define ARROW_RESTRICT __restrict
+#if defined(__clang__)  // clang-specific
+#define ARROW_COMPILER_ASSUME(expr) __builtin_assume(expr)
+#else
+#define ARROW_COMPILER_ASSUME(expr) \
+  if (!(expr)) {                    \
+    __builtin_unreachable();        \
+  }
+#endif
+#elif defined(_MSC_VER)  // MSVC
 #define ARROW_NORETURN __declspec(noreturn)
 #define ARROW_NOINLINE __declspec(noinline)
 #define ARROW_FORCE_INLINE __declspec(forceinline)
 #define ARROW_PREDICT_FALSE(x) (x)
 #define ARROW_PREDICT_TRUE(x) (x)
 #define ARROW_PREFETCH(addr)
+#define ARROW_RESTRICT __restrict
+#define ARROW_COMPILER_ASSUME(expr) __assume(expr)
 #else
 #define ARROW_NORETURN
 #define ARROW_NOINLINE
@@ -65,12 +90,8 @@
 #define ARROW_PREDICT_FALSE(x) (x)
 #define ARROW_PREDICT_TRUE(x) (x)
 #define ARROW_PREFETCH(addr)
-#endif
-
-#if defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER)
-#define ARROW_RESTRICT __restrict
-#else
 #define ARROW_RESTRICT
+#define ARROW_COMPILER_ASSUME(expr)
 #endif
 
 // ----------------------------------------------------------------------
