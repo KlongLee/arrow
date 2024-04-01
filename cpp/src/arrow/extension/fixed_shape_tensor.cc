@@ -330,8 +330,14 @@ const Result<std::shared_ptr<Tensor>> FixedShapeTensorArray::ToTensor() const {
   shape.insert(shape.begin(), 1, this->length());
   internal::Permute<int64_t>(permutation, &shape);
 
-  ARROW_ASSIGN_OR_RAISE(std::vector<int64_t> tensor_strides,
-                        internal::ComputeStrides(value_type, shape, permutation));
+  std::vector<int64_t> tensor_strides;
+  const auto& fw_type = internal::checked_cast<const FixedWidthType&>(*value_type);
+  auto permuted_shape = shape;
+
+  internal::Permute(permutation, &permuted_shape);
+  ARROW_DCHECK_OK(
+      internal::ComputeRowMajorStrides(fw_type, permuted_shape, &tensor_strides));
+  internal::Permute(permutation, &tensor_strides);
 
   const auto raw_buffer = this->storage()->data()->child_data[0]->buffers[1];
   ARROW_ASSIGN_OR_RAISE(
