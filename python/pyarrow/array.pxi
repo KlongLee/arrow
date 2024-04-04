@@ -4351,22 +4351,11 @@ cdef class VariableShapeTensorArray(ExtensionArray):
 
     >>> shapes = pa.array([[2, 3], [1, 2]], pa.list_(pa.int32(), 2))
     >>> values = pa.array([[1, 2, 3, 4, 5, 6], [7, 8]], pa.list_(pa.float64()))
-    >>> arr = pa.StructArray.from_arrays([shapes, values], names=["shape", "data"])
+    >>> arr = pa.StructArray.from_arrays([values, shapes], names=["data", "shape"])
     >>> pa.ExtensionArray.from_storage(tensor_type, arr)
     <pyarrow.lib.VariableShapeTensorArray object at ...>
     -- is_valid: all not null
-    -- child 0 type: fixed_size_list<item: int32>[2]
-      [
-        [
-          2,
-          3
-        ],
-        [
-          1,
-          2
-        ]
-      ]
-    -- child 1 type: list<item: double>
+    -- child 0 type: list<item: double>
       [
         [
           1,
@@ -4379,6 +4368,17 @@ cdef class VariableShapeTensorArray(ExtensionArray):
         [
           7,
           8
+        ]
+      ]
+    -- child 1 type: fixed_size_list<item: int32>[2]
+      [
+        [
+          2,
+          3
+        ],
+        [
+          1,
+          2
         ]
       ]
     """
@@ -4407,18 +4407,7 @@ cdef class VariableShapeTensorArray(ExtensionArray):
         >>> arr
         <pyarrow.lib.VariableShapeTensorArray object at ...>
         -- is_valid: all not null
-        -- child 0 type: fixed_size_list<item: int32>[2]
-          [
-            [
-              2,
-              3
-            ],
-            [
-              1,
-              2
-            ]
-          ]
-        -- child 1 type: list<item: float>
+        -- child 0 type: list<item: float>
           [
             [
               1,
@@ -4431,6 +4420,17 @@ cdef class VariableShapeTensorArray(ExtensionArray):
             [
               7,
               8
+            ]
+          ]
+        -- child 1 type: fixed_size_list<item: int32>[2]
+          [
+            [
+              2,
+              3
+            ],
+            [
+              1,
+              2
             ]
           ]
         """
@@ -4460,7 +4460,7 @@ cdef class VariableShapeTensorArray(ExtensionArray):
 
         values = array([np.ravel(o, order="K") for o in obj], list_(arrow_type))
         shapes = array(shapes, list_(int32(), list_size=ndim))
-        struct_arr = StructArray.from_arrays([shapes, values], names=["shape", "data"])
+        struct_arr = StructArray.from_arrays([values, shapes], names=["data", "shape"])
 
         return ExtensionArray.from_storage(variable_shape_tensor(arrow_type, ndim, permutation=permutation), struct_arr)
 

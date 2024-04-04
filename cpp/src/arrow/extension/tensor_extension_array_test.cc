@@ -93,7 +93,7 @@ auto RoundtripBatch = [](const std::shared_ptr<RecordBatch>& batch,
 TEST_F(TestFixedShapeTensorType, CheckDummyRegistration) {
   // We need a registered dummy type at runtime to allow for IPC deserialization
   auto registered_type = GetExtensionType("arrow.fixed_shape_tensor");
-  ASSERT_TRUE(registered_type->type_id == Type::EXTENSION);
+  ASSERT_EQ(registered_type->id(), Type::EXTENSION);
 }
 
 TEST_F(TestFixedShapeTensorType, CreateExtensionType) {
@@ -170,9 +170,8 @@ TEST_F(TestFixedShapeTensorType, CreateFromArray) {
   ASSERT_EQ(ext_arr->null_count(), 0);
 }
 
-template <typename T>
 void CheckSerializationRoundtrip(const std::shared_ptr<DataType>& ext_type) {
-  auto type = internal::checked_pointer_cast<T>(ext_type);
+  auto type = internal::checked_pointer_cast<ExtensionType>(ext_type);
   auto serialized = type->Serialize();
   ASSERT_OK_AND_ASSIGN(auto deserialized,
                        type->Deserialize(type->storage_type(), serialized));
@@ -189,14 +188,13 @@ void CheckDeserializationRaises(const std::shared_ptr<DataType>& extension_type,
 }
 
 TEST_F(TestFixedShapeTensorType, MetadataSerializationRoundtrip) {
-  using T = FixedShapeTensorType;
-  CheckSerializationRoundtrip<T>(ext_type_);
-  CheckSerializationRoundtrip<T>(fixed_shape_tensor(value_type_, {}, {}, {}));
-  CheckSerializationRoundtrip<T>(fixed_shape_tensor(value_type_, {0}, {}, {}));
-  CheckSerializationRoundtrip<T>(fixed_shape_tensor(value_type_, {1}, {0}, {"x"}));
-  CheckSerializationRoundtrip<T>(
+  CheckSerializationRoundtrip(ext_type_);
+  CheckSerializationRoundtrip(fixed_shape_tensor(value_type_, {}, {}, {}));
+  CheckSerializationRoundtrip(fixed_shape_tensor(value_type_, {0}, {}, {}));
+  CheckSerializationRoundtrip(fixed_shape_tensor(value_type_, {1}, {0}, {"x"}));
+  CheckSerializationRoundtrip(
       fixed_shape_tensor(value_type_, {256, 256, 3}, {0, 1, 2}, {"H", "W", "C"}));
-  CheckSerializationRoundtrip<T>(
+  CheckSerializationRoundtrip(
       fixed_shape_tensor(value_type_, {256, 256, 3}, {2, 0, 1}, {"C", "H", "W"}));
 
   auto storage_type = fixed_size_list(int64(), 12);
@@ -525,11 +523,11 @@ TEST_F(TestFixedShapeTensorType, ComputeStrides) {
   ASSERT_EQ(ext_type_6->Serialize(), R"({"shape":[3,4,7],"permutation":[1,2,0]})");
   auto ext_type_7 = internal::checked_pointer_cast<FixedShapeTensorType>(
       fixed_shape_tensor(int32(), {3, 4, 7}, {2, 0, 1}, {}));
-  ASSERT_EQ(ext_type_7->strides(), (std::vector<int64_t>{4, 112, 16}));
+  ASSERT_EQ(ext_type_7->strides(), (std::vector<int64_t>{4, 112, 28}));
   ASSERT_EQ(ext_type_7->Serialize(), R"({"shape":[3,4,7],"permutation":[2,0,1]})");
 }
 
-TEST_F(TestFixedShapeTensorType, FixedShapeTensoToString) {
+TEST_F(TestFixedShapeTensorType, FixedShapeTensorToString) {
   auto exact_ext_type = internal::checked_pointer_cast<FixedShapeTensorType>(ext_type_);
 
   auto ext_type_1 = internal::checked_pointer_cast<FixedShapeTensorType>(
@@ -596,7 +594,7 @@ TEST_F(TestFixedShapeTensorType, GetTensor) {
     // Get tensor from extension array with non-trivial permutation
     ASSERT_OK_AND_ASSIGN(auto expected_permuted_tensor,
                          Tensor::Make(value_type_, Buffer::Wrap(element_values[i]),
-                                      {4, 3}, {8, 24}, {"y", "x"}));
+                                      {4, 3}, {8, 32}, {"y", "x"}));
     ASSERT_OK_AND_ASSIGN(scalar, permuted_array->GetScalar(i));
     ASSERT_OK_AND_ASSIGN(auto actual_permuted_tensor,
                          exact_permuted_ext_type->MakeTensor(
@@ -670,7 +668,7 @@ class TestVariableShapeTensorType : public ::testing::Test {
         R"({"permutation":[0,1,2],"dim_names":["x","y","z"],"uniform_shape":[null,1,null]})";
     storage_arr_ = ArrayFromJSON(
         ext_type_->storage_type(),
-        R"([[[2,3,1],[0,1,2,3,4,5]],[[1,2,2],[6,7,8,9]],[[3,1,3],[10,11,12,13,14,15,16,17,18]]])");
+        R"([[[0,1,2,3,4,5],[2,3,1]],[[6,7,8,9],[1,2,2]],[[10,11,12,13,14,15,16,17,18],[3,1,3]]])");
     ext_arr_ = internal::checked_pointer_cast<ExtensionArray>(
         ExtensionType::WrapArray(ext_type_, storage_arr_));
   }
@@ -695,7 +693,7 @@ class TestVariableShapeTensorType : public ::testing::Test {
 TEST_F(TestVariableShapeTensorType, CheckDummyRegistration) {
   // We need a registered dummy type at runtime to allow for IPC deserialization
   auto registered_type = GetExtensionType("arrow.variable_shape_tensor");
-  ASSERT_TRUE(registered_type->type_id == Type::EXTENSION);
+  ASSERT_EQ(registered_type->id(), Type::EXTENSION);
 }
 
 TEST_F(TestVariableShapeTensorType, CreateExtensionType) {
@@ -705,10 +703,9 @@ TEST_F(TestVariableShapeTensorType, CreateExtensionType) {
   // Test ExtensionType methods
   ASSERT_EQ(ext_type_->extension_name(), "arrow.variable_shape_tensor");
   ASSERT_TRUE(ext_type_->Equals(*exact_ext_type));
-  auto expected_type = struct_({
-      ::arrow::field("shape", fixed_size_list(int32(), ndim_)),
-      ::arrow::field("data", list(value_type_)),
-  });
+  auto expected_type =
+      struct_({::arrow::field("data", list(value_type_)),
+               ::arrow::field("shape", fixed_size_list(int32(), ndim_))});
 
   ASSERT_TRUE(ext_type_->storage_type()->Equals(*expected_type));
   ASSERT_EQ(ext_type_->Serialize(), serialized_);
@@ -735,7 +732,7 @@ TEST_F(TestVariableShapeTensorType, CreateExtensionType) {
   EXPECT_RAISES_WITH_MESSAGE_THAT(
       Invalid,
       testing::HasSubstr("Invalid: Permutation indices for 3 dimensional tensors must be "
-                         "unique and within [0, 2] range. Got: [0,0,2]"),
+                         "unique and within [0, 2] range. Got: [2,0,0]"),
       VariableShapeTensorType::Make(value_type_, 3, {2, 0, 0}, {"C", "H", "W"}));
   EXPECT_RAISES_WITH_MESSAGE_THAT(
       Invalid,
@@ -767,18 +764,16 @@ TEST_F(TestVariableShapeTensorType, EqualsCases) {
 }
 
 TEST_F(TestVariableShapeTensorType, MetadataSerializationRoundtrip) {
-  using T = VariableShapeTensorType;
-
-  CheckSerializationRoundtrip<T>(ext_type_);
-  CheckSerializationRoundtrip<T>(
+  CheckSerializationRoundtrip(ext_type_);
+  CheckSerializationRoundtrip(
       variable_shape_tensor(value_type_, 3, {1, 2, 0}, {"x", "y", "z"}));
-  CheckSerializationRoundtrip<T>(variable_shape_tensor(value_type_, 0, {}, {}));
-  CheckSerializationRoundtrip<T>(variable_shape_tensor(value_type_, 1, {0}, {"x"}));
-  CheckSerializationRoundtrip<T>(
+  CheckSerializationRoundtrip(variable_shape_tensor(value_type_, 0, {}, {}));
+  CheckSerializationRoundtrip(variable_shape_tensor(value_type_, 1, {0}, {"x"}));
+  CheckSerializationRoundtrip(
       variable_shape_tensor(value_type_, 3, {0, 1, 2}, {"H", "W", "C"}));
-  CheckSerializationRoundtrip<T>(
+  CheckSerializationRoundtrip(
       variable_shape_tensor(value_type_, 3, {2, 0, 1}, {"C", "H", "W"}));
-  CheckSerializationRoundtrip<T>(
+  CheckSerializationRoundtrip(
       variable_shape_tensor(value_type_, 3, {2, 0, 1}, {"C", "H", "W"}, {0, 1, 2}));
 
   auto storage_type = ext_type_->storage_type();
@@ -787,9 +782,9 @@ TEST_F(TestVariableShapeTensorType, MetadataSerializationRoundtrip) {
   CheckDeserializationRaises(ext_type_, storage_type, R"({"shape":(3,4)})",
                              "Invalid serialized JSON data");
   CheckDeserializationRaises(ext_type_, storage_type, R"({"permutation":[1,0]})",
-                             "Invalid permutation");
+                             "Invalid: permutation");
   CheckDeserializationRaises(ext_type_, storage_type, R"({"dim_names":["x","y"]})",
-                             "Invalid dim_names");
+                             "Invalid: dim_names");
 }
 
 TEST_F(TestVariableShapeTensorType, RoudtripBatch) {
@@ -819,9 +814,9 @@ TEST_F(TestVariableShapeTensorType, ComputeStrides) {
   auto shapes = ArrayFromJSON(shape_type_, "[[2,3,1],[2,1,2],[3,1,3],null]");
   auto data = ArrayFromJSON(
       data_type_, "[[1,1,2,3,4,5],[2,7,8,9],[10,11,12,13,14,15,16,17,18],null]");
-  std::vector<std::shared_ptr<Field>> fields = {field("shapes", shape_type_),
-                                                field("data", data_type_)};
-  ASSERT_OK_AND_ASSIGN(auto storage_arr, StructArray::Make({shapes, data}, fields));
+  std::vector<std::shared_ptr<Field>> fields = {field("data", data_type_),
+                                                field("shapes", shape_type_)};
+  ASSERT_OK_AND_ASSIGN(auto storage_arr, StructArray::Make({data, shapes}, fields));
   auto ext_arr = ExtensionType::WrapArray(ext_type_, storage_arr);
   auto exact_ext_type =
       internal::checked_pointer_cast<VariableShapeTensorType>(ext_type_);
@@ -835,13 +830,10 @@ TEST_F(TestVariableShapeTensorType, ComputeStrides) {
   ASSERT_EQ(t->shape(), (std::vector<int64_t>{2, 3, 1}));
   ASSERT_EQ(t->strides(), (std::vector<int64_t>{24, 8, 8}));
 
-  std::vector<int64_t> shape = {2, 3, 1};
   std::vector<int64_t> strides = {sizeof(int64_t) * 3, sizeof(int64_t) * 1,
                                   sizeof(int64_t) * 1};
-  std::vector<int64_t> values = {1, 1, 2, 3, 4, 5};
-  auto data_buffer = Buffer::Wrap(values);
-  ASSERT_OK_AND_ASSIGN(tensor,
-                       Tensor::Make(int64(), data_buffer, shape, strides, dim_names_));
+  tensor = TensorFromJSON(int64(), R"([1,1,2,3,4,5])", {2, 3, 1}, strides, dim_names_);
+
   ASSERT_TRUE(tensor->Equals(*t));
 
   ASSERT_OK_AND_ASSIGN(scalar, ext_array->GetScalar(1));
@@ -856,12 +848,9 @@ TEST_F(TestVariableShapeTensorType, ComputeStrides) {
   ASSERT_EQ(t->shape(), (std::vector<int64_t>{3, 1, 3}));
   ASSERT_EQ(t->strides(), (std::vector<int64_t>{24, 24, 8}));
 
-  shape = {3, 1, 3};
   strides = {sizeof(int64_t) * 3, sizeof(int64_t) * 3, sizeof(int64_t) * 1};
-  values = {10, 11, 12, 13, 14, 15, 16, 17, 18};
-  data_buffer = Buffer::Wrap(values);
-  ASSERT_OK_AND_ASSIGN(tensor,
-                       Tensor::Make(int64(), data_buffer, shape, strides, dim_names_));
+  tensor = TensorFromJSON(int64(), R"([10,11,12,13,14,15,16,17,18])", {3, 1, 3}, strides,
+                          dim_names_);
 
   ASSERT_EQ(tensor->strides(), t->strides());
   ASSERT_EQ(tensor->shape(), t->shape());
@@ -883,12 +872,9 @@ TEST_F(TestVariableShapeTensorType, ComputeStrides) {
   ASSERT_TRUE(tensor->Equals(*t));
 
   // Null value in VariableShapeTensorArray produces a tensor with shape {0, 0, 0}
-  shape = {0, 0, 0};
   strides = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
-  values = {};
-  data_buffer = Buffer::Wrap(values);
-  ASSERT_OK_AND_ASSIGN(tensor,
-                       Tensor::Make(int64(), data_buffer, shape, strides, dim_names_));
+  tensor = TensorFromJSON(int64(), R"([10,11,12,13,14,15,16,17,18])", {0, 0, 0}, strides,
+                          dim_names_);
 
   ASSERT_OK_AND_ASSIGN(sc, ext_arr->GetScalar(3));
   ASSERT_OK_AND_ASSIGN(

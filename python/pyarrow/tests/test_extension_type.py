@@ -1322,8 +1322,8 @@ def test_fixed_shape_tensor_type():
 def test_variable_shape_tensor_type():
     tensor_type = pa.variable_shape_tensor(pa.int8(), 2)
     expected_storage_type = pa.struct([
-        pa.field("shape", pa.list_(pa.int32(), 2)),
-        pa.field("data", pa.list_(pa.int8()))
+        pa.field("data", pa.list_(pa.int8())),
+        pa.field("shape", pa.list_(pa.int32(), 2))
     ])
     assert tensor_type.extension_name == "arrow.variable_shape_tensor"
     assert tensor_type.storage_type == expected_storage_type
@@ -1334,8 +1334,8 @@ def test_variable_shape_tensor_type():
 
     tensor_type = pa.variable_shape_tensor(pa.int64(), 3, dim_names=['C', 'H', 'W'])
     expected_storage_type = pa.struct([
-        pa.field("shape", pa.list_(pa.int32(), 3)),
-        pa.field("data", pa.list_(pa.int64()))
+        pa.field("data", pa.list_(pa.int64())),
+        pa.field("shape", pa.list_(pa.int32(), 3))
     ])
     assert tensor_type.extension_name == "arrow.variable_shape_tensor"
     assert tensor_type.storage_type == expected_storage_type
@@ -1346,8 +1346,8 @@ def test_variable_shape_tensor_type():
 
     tensor_type = pa.variable_shape_tensor(pa.bool_(), 2, permutation=[1, 0])
     expected_storage_type = pa.struct([
-        pa.field("shape", pa.list_(pa.int32(), 2)),
-        pa.field("data", pa.list_(pa.bool_()))
+        pa.field("data", pa.list_(pa.bool_())),
+        pa.field("shape", pa.list_(pa.int32(), 2))
     ])
     assert tensor_type.extension_name == "arrow.variable_shape_tensor"
     assert tensor_type.storage_type == expected_storage_type
@@ -1358,8 +1358,8 @@ def test_variable_shape_tensor_type():
 
     tensor_type = pa.variable_shape_tensor(pa.float64(), 2, uniform_shape=[1, None])
     expected_storage_type = pa.struct([
-        pa.field("shape", pa.list_(pa.int32(), 2)),
-        pa.field("data", pa.list_(pa.float64()))
+        pa.field("data", pa.list_(pa.float64())),
+        pa.field("shape", pa.list_(pa.int32(), 2))
     ])
     assert tensor_type.extension_name == "arrow.variable_shape_tensor"
     assert tensor_type.storage_type == expected_storage_type
@@ -1418,6 +1418,17 @@ def test_fixed_shape_tensor_class_methods(value_type):
     assert result.type.shape == [2, 2, 3]
     assert result.to_tensor().shape == (1, 3, 2, 2)
     assert result.to_tensor().strides == (12 * bw, 1 * bw, 6 * bw, 2 * bw)
+
+    tensor_type = pa.fixed_shape_tensor(arrow_type, [2, 2, 3], permutation=[2, 1, 0])
+    result = pa.ExtensionArray.from_storage(tensor_type, storage)
+    expected = as_strided(flat_arr, shape=(1, 3, 2, 2),
+                          strides=(bw * 12, bw, bw * 3, bw * 6))
+    np.testing.assert_array_equal(result.to_numpy_ndarray(), expected)
+
+    assert result.type.permutation == [2, 1, 0]
+    assert result.type.shape == [2, 2, 3]
+    assert result.to_tensor().shape == (1, 3, 2, 2)
+    assert result.to_tensor().strides == (12 * bw, 1 * bw, 3 * bw, 6 * bw)
 
 
 @pytest.mark.parametrize("value_type", (np.int8(), np.int64(), np.float32()))
@@ -1495,18 +1506,18 @@ def test_variable_shape_tensor_class_methods(value_type):
         permutation=[0, 1],
         uniform_shape=[None, None],
     )
-    fields = [pa.field("shape", shape_type), pa.field("data", pa.list_(arrow_type))]
+    fields = [pa.field("data", pa.list_(arrow_type)), pa.field("shape", shape_type)]
 
     shapes = pa.array([[2, 3], [2, 1]], shape_type)
     values = pa.array([[1, 2, 3, 4, 5, 6], [7, 8]], pa.list_(arrow_type))
-    struct_arr = pa.StructArray.from_arrays([shapes, values], fields=fields)
+    struct_arr = pa.StructArray.from_arrays([values, shapes], fields=fields)
     arr = pa.ExtensionArray.from_storage(tensor_type, struct_arr)
     basic_arr = pa.ExtensionArray.from_storage(
         pa.variable_shape_tensor(arrow_type, ndim), struct_arr
     )
 
     storage = pa.array(
-        [([2, 3], [1, 2, 3, 4, 5, 6]), ([2, 1], [7, 8])], type=pa.struct(fields)
+        [([1, 2, 3, 4, 5, 6], [2, 3]), ([7, 8], [2, 1])], type=pa.struct(fields)
     )
     assert pa.ExtensionArray.from_storage(tensor_type, storage).equals(arr)
 
@@ -1545,7 +1556,7 @@ def test_variable_shape_tensor_class_methods(value_type):
 
     shapes = pa.array([[2, 3], [0, 0]], shape_type)
     values = pa.array([[1, 2, 3, 4, 5, 6], []], pa.list_(arrow_type))
-    struct_arr = pa.StructArray.from_arrays([shapes, values], fields=fields)
+    struct_arr = pa.StructArray.from_arrays([values, shapes], fields=fields)
     arr = pa.ExtensionArray.from_storage(tensor_type, struct_arr)
     np.testing.assert_array_equal(arr[1].to_tensor().to_numpy(), np.array(
         [], dtype=value_type).reshape(shapes[1].as_py()))
@@ -1651,12 +1662,12 @@ def test_tensor_type_ipc(tensor_type):
     pa.variable_shape_tensor(pa.int8(), 2, uniform_shape=[None, None]),
 ))
 def test_variable_shape_tensor_type_ipc(tensor_type):
-    shape_type = tensor_type.storage_type.field(0).type
-    values_type = tensor_type.storage_type.field(1).type
-    shapes = pa.array([[2, 3], [1, 2]], shape_type)
+    values_type = tensor_type.storage_type.field(0).type
+    shape_type = tensor_type.storage_type.field(1).type
     values = pa.array([[1, 2, 3, 4, 5, 6], [7, 8]], values_type)
+    shapes = pa.array([[2, 3], [1, 2]], shape_type)
 
-    struct_arr = pa.StructArray.from_arrays([shapes, values], names=["shape", "data"])
+    struct_arr = pa.StructArray.from_arrays([values, shapes], names=["data", "shape"])
     arr = pa.ExtensionArray.from_storage(tensor_type, struct_arr)
     batch = pa.RecordBatch.from_arrays([arr], ["ext"])
 
@@ -1776,7 +1787,7 @@ def test_variable_shape_tensor_type_is_picklable(pickle_module):
 
     shapes = pa.array([[2, 3], [1, 2]], pa.list_(pa.int32(), 2))
     values = pa.array([[1, 2, 3, 4, 5, 6], [7, 8]], pa.list_(pa.int32()))
-    arr = pa.StructArray.from_arrays([shapes, values], names=["shape", "data"])
+    arr = pa.StructArray.from_arrays([values, shapes], names=["data", "shape"])
     expected_arr = pa.ExtensionArray.from_storage(expected_type, arr)
 
     result = pickle_module.loads(pickle_module.dumps(expected_arr))
