@@ -4386,8 +4386,8 @@ cdef class VariableShapeTensorArray(ExtensionArray):
     @staticmethod
     def from_numpy_ndarray(obj):
         """
-        Convert a list of numpy arrays ndarrays to a variable shape tensor extension array.
-        The length of the list will become the length of the variable shape tensor array.
+        Convert a list of numpy.ndarrays to a variable shape tensor extension array.
+        The length of the input list will become the length of the variable shape tensor array.
 
         Parameters
         ----------
@@ -4402,6 +4402,7 @@ cdef class VariableShapeTensorArray(ExtensionArray):
         ...         np.array([[7, 8]], dtype=np.float32),
         ...     ]
         >>> arr = pa.VariableShapeTensorArray.from_numpy_ndarray(ndarray_list)
+        >>> assert len(ndarray_list) == len(arr)
         >>> arr.type
         VariableShapeTensorType(extension<arrow.variable_shape_tensor[value_type=float, ndim=2, permutation=[0,1]]>)
         >>> arr
