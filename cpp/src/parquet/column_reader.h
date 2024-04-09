@@ -302,12 +302,9 @@ class TypedColumnReader : public ColumnReader {
                                           int32_t* dict_len) = 0;
 };
 
-namespace internal {
-
 /// \brief Stateful column reader that delimits semantic records for both flat
 /// and nested columns
 ///
-/// \note API EXPERIMENTAL
 /// \since 1.3.0
 class PARQUET_EXPORT RecordReader {
  public:
@@ -486,8 +483,6 @@ class DictionaryRecordReader : virtual public RecordReader {
  public:
   virtual std::shared_ptr<::arrow::ChunkedArray> GetResult() = 0;
 };
-
-}  // namespace internal
 
 using BoolReader = TypedColumnReader<BooleanType>;
 using Int32Reader = TypedColumnReader<Int32Type>;
