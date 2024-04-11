@@ -40,6 +40,11 @@ static ExecBatch MakeRandomExecBatch(const DataTypeVector& types, int64_t num_ro
   auto num_types = static_cast<int>(types.size());
 
   // clang-format off
+  // For unique probability:
+  // The proportion of Unique determines the number of groups.
+  // 1. In most scenarios, unique has a small proportion and exists
+  // 2. In GroupBy/HashJoin are sometimes used for deduplication and
+  // in that use case the key is mostly unique
   auto metadata = key_value_metadata(
       {
         "null_probability",
@@ -110,7 +115,7 @@ void SetArgs(benchmark::internal::Benchmark* bench) {
 // 2. Combination types which will break the CPU-pipeline in column comparision.
 //    Examples: https://github.com/apache/arrow/pull/41036#issuecomment-2048721547
 //
-// 3. Combination type requiring column resorted. These combinations are
+// 3. Combination types requiring column resorted. These combinations are
 //    essentially to test the impact of RowTableEncoder's sorting function on
 //    input columns on the performance of CompareColumnsToRows
 //    Examples: https://github.com/apache/arrow/pull/40998#issuecomment-2039204161
