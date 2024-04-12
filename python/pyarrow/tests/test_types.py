@@ -32,8 +32,8 @@ import weakref
 
 import numpy as np
 import pyarrow as pa
-import pyarrow.types as types
 import pyarrow.tests.strategies as past
+from pyarrow import types
 
 
 def get_many_types():
@@ -1260,24 +1260,24 @@ def test_field_modified_copies():
 
 
 def test_is_integer_value():
-    assert pa.types.is_integer_value(1)
-    assert pa.types.is_integer_value(np.int64(1))
-    assert not pa.types.is_integer_value('1')
+    assert types.is_integer_value(1)
+    assert types.is_integer_value(np.int64(1))
+    assert not types.is_integer_value('1')
 
 
 def test_is_float_value():
-    assert not pa.types.is_float_value(1)
-    assert pa.types.is_float_value(1.)
-    assert pa.types.is_float_value(np.float64(1))
-    assert not pa.types.is_float_value('1.0')
+    assert not types.is_float_value(1)
+    assert types.is_float_value(1.)
+    assert types.is_float_value(np.float64(1))
+    assert not types.is_float_value('1.0')
 
 
 def test_is_boolean_value():
-    assert not pa.types.is_boolean_value(1)
-    assert pa.types.is_boolean_value(True)
-    assert pa.types.is_boolean_value(False)
-    assert pa.types.is_boolean_value(np.bool_(True))
-    assert pa.types.is_boolean_value(np.bool_(False))
+    assert not types.is_boolean_value(1)
+    assert types.is_boolean_value(True)
+    assert types.is_boolean_value(False)
+    assert types.is_boolean_value(np.bool_(True))
+    assert types.is_boolean_value(np.bool_(False))
 
 
 @h.settings(suppress_health_check=(h.HealthCheck.too_slow,))

@@ -142,11 +142,6 @@ cdef void* _as_c_pointer(v, allow_null=False) except *:
     return c_ptr
 
 
-def _is_primitive(Type type):
-    # This is simply a redirect, the official API is in pyarrow.types.
-    return is_primitive(type)
-
-
 def _get_pandas_type(arrow_type, coerce_to_ns=False):
     cdef Type type_id = arrow_type.id
     if type_id not in _pandas_type_map:
@@ -5399,6 +5394,729 @@ def is_float_value(object obj):
         The object to check
     """
     return IsPyFloat(obj)
+
+
+def _is_integer(data_type):
+    """
+    Returns whether the `data_type` is an integer type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_integer(data_type.id)
+
+
+def _is_signed_integer(data_type):
+    """
+    Returns whether the `data_type` is a signed integer type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_signed_integer(data_type.id)
+
+
+def _is_unsigned_integer(data_type):
+    """
+    Returns whether the `data_type` is an unsigned integer type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_unsigned_integer(data_type.id)
+
+
+def _is_floating(data_type):
+    """
+    Returns whether the `data_type` is a floating type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_floating(data_type.id)
+
+
+def _is_numeric(data_type):
+    """
+    Returns whether the `data_type` is a numeric type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_numeric(data_type.id)
+
+
+def _is_decimal(data_type):
+    """
+    Returns whether the `data_type` is a decimal type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_decimal(data_type.id)
+
+
+def _is_run_end_type(data_type):
+    """
+    Returns whether the `data_type` is a run end type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_run_end_type(data_type.id)
+
+
+def _is_primitive(data_type):
+    """
+    Returns whether the `data_type` is a primitive type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_primitive(data_type.id)
+
+
+def _is_base_binary_like(data_type):
+    """
+    Returns whether the `data_type` is a base binary-like type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_base_binary_like(data_type.id)
+
+
+def _is_binary_like(data_type):
+    """
+    Returns whether the `data_type` is a binary-like type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_binary_like(data_type.id)
+
+
+def _is_large_binary_like(data_type):
+    """
+    Returns whether the `data_type` is a large binary-like type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_large_binary_like(data_type.id)
+
+
+def _is_binary(data_type):
+    """
+    Returns whether the `data_type` is a binary type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_binary(data_type.id) and offset_bit_width(data_type.id) == 32
+
+
+def _is_string(data_type):
+    """
+    Returns whether the `data_type` is a string type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_string(data_type.id) and offset_bit_width(data_type.id) == 32
+
+
+def _is_temporal(data_type):
+    """
+    Returns whether the `data_type` is a temporal type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_primitive(data_type.id) and not is_integer(data_type.id) and \
+        not is_floating(data_type.id)
+
+
+def _is_time(data_type):
+    """
+    Returns whether the `data_type` is a time type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_time(data_type.id)
+
+
+def _is_date(data_type):
+    """
+    Returns whether the `data_type` is a date type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_date(data_type.id)
+
+
+def _is_interval(data_type):
+    """
+    Returns whether the `data_type` is an interval type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_interval(data_type.id)
+
+
+def _is_dictionary(data_type):
+    """
+    Returns whether the `data_type` is a dictionary type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_dictionary(data_type.id)
+
+
+def _is_fixed_size_binary(data_type):
+    """
+    Returns whether the `data_type` is a fixed size binary type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_fixed_size_binary(data_type.id)
+
+
+def _is_fixed_width(data_type):
+    """
+    Returns whether the `data_type` is a fixed width type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_fixed_width(data_type.id)
+
+
+def _is_var_length_list(data_type):
+    """
+    Returns whether the `data_type` is a variable length list type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_var_length_list(data_type.id)
+
+
+def _is_list(data_type):
+    """
+    Returns whether the `data_type` is a list type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_list(data_type.id) and offset_bit_width(data_type.id) == 32
+
+
+def _is_list_like(data_type):
+    """
+    Returns whether the `data_type` is a list like type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_list_like(data_type.id)
+
+
+def _is_var_length_list_like(data_type):
+    """
+    Returns whether the `data_type` is a variable length list like type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_var_length_list_like(data_type.id)
+
+
+def _bit_width(data_type):
+    """
+    Determine the bit width of the data type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return bit_width(data_type.id)
+
+
+def _offset_bit_width(data_type):
+    """
+    Determine the offset bit width of the data type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return offset_bit_width(data_type.id)
+
+
+def is_null(data_type):
+    """
+    Returns whether the `data_type` is a null type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_NA
+
+
+def is_boolean(data_type):
+    """
+    Returns whether the `data_type` is a boolean type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_BOOL
+
+
+def is_int8(data_type):
+    """
+    Returns whether the `data_type` is an 8-bit integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_integer(data_type.id) and bit_width(data_type.id) == 8
+
+
+def is_int16(data_type):
+    """
+    Returns whether the `data_type` is an 16-bit integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_integer(data_type.id) and bit_width(data_type.id) == 16
+
+
+def is_int32(data_type):
+    """
+    Returns whether the `data_type` is an 32-bit integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_integer(data_type.id) and bit_width(data_type.id) == 32
+
+
+def is_int64(data_type):
+    """
+    Returns whether the `data_type` is an 64-bit integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_integer(data_type.id) and bit_width(data_type.id) == 64
+
+
+def is_uint8(data_type):
+    """
+    Returns whether the `data_type` is an 8-bit unsigned integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_unsigned_integer(data_type.id) and bit_width(data_type.id) == 8
+
+
+def is_uint16(data_type):
+    """
+    Returns whether the `data_type` is an 16-bit unsigned integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_unsigned_integer(data_type.id) and bit_width(data_type.id) == 16
+
+
+def is_uint32(data_type):
+    """
+    Returns whether the `data_type` is an 32-bit unsigned integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_unsigned_integer(data_type.id) and bit_width(data_type.id) == 32
+
+
+def is_uint64(data_type):
+    """
+    Returns whether the `data_type` is an 64-bit unsigned integer.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_unsigned_integer(data_type.id) and bit_width(data_type.id) == 64
+
+
+def is_float16(data_type):
+    """
+    Returns whether the `data_type` is a 16-bit floating point number.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_floating(data_type.id) and bit_width(data_type.id) == 16
+
+
+def is_float32(data_type):
+    """
+    Returns whether the `data_type` is a 32-bit floating point number.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_floating(data_type.id) and bit_width(data_type.id) == 32
+
+
+def is_float64(data_type):
+    """
+    Returns whether the `data_type` is a 64-bit floating point number.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_floating(data_type.id) and bit_width(data_type.id) == 64
+
+
+def is_large_list(data_type):
+    """
+    Returns whether the `data_type` is a large list type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_list(data_type.id) and offset_bit_width(data_type.id) == 64
+
+
+def is_fixed_size_list(data_type):
+    """
+    Returns whether the `data_type` is a fixed size list type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_FIXED_SIZE_LIST
+
+
+def _is_list_view(data_type):
+    """
+    Returns whether the `data_type` is a list view type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_list_view(data_type.id) and offset_bit_width(data_type.id) == 32
+
+
+def _is_large_list_view(data_type):
+    """
+    Returns whether the `data_type` is a large list view type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_list_view(data_type.id) and offset_bit_width(data_type.id) == 64
+
+
+def is_struct(data_type):
+    """
+    Returns whether the `data_type` is a struct type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_STRUCT
+
+
+def _is_union(data_type):
+    """
+    Returns whether the `data_type` is a union type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_union(data_type.id)
+
+
+def _is_nested(data_type):
+    """
+    Returns whether the `data_type` is a nested type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_nested(data_type.id)
+
+
+def is_timestamp(data_type):
+    """
+    Returns whether the `data_type` is a timestamp type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_temporal(data_type.id) and not is_time(data_type.id) and not is_date(data_type.id)
+
+
+def is_duration(data_type):
+    """
+    Returns whether the `data_type` is a duration type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_primitive(data_type.id) and not is_integer(data_type.id) and \
+        not is_floating(data_type.id) and not is_temporal(data_type.id) and \
+        not is_interval(data_type.id)
+
+
+def is_time32(data_type):
+    """
+    Returns whether the `data_type` is a time32 type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_time(data_type.id) and bit_width(data_type.id) == 32
+
+
+def is_time64(data_type):
+    """
+    Returns whether the `data_type` is a time64 type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_time(data_type.id) and bit_width(data_type.id) == 64
+
+
+def is_large_binary(data_type):
+    """
+    Returns whether the `data_type` is a large binary type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_binary(data_type.id) and offset_bit_width(data_type.id) == 64
+
+
+def is_large_string(data_type):
+    """
+    Returns whether the `data_type` is a large string type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_string(data_type.id) and offset_bit_width(data_type.id) == 64
+
+
+def is_binary_view(data_type):
+    """
+    Returns whether the `data_type` is a binary view type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_BINARY_VIEW
+
+
+def is_string_view(data_type):
+    """
+    Returns whether the `data_type` is a string view type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_STRING_VIEW
+
+
+def is_date32(data_type):
+    """
+    Returns whether the `data_type` is a date32 type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_date(data_type.id) and bit_width(data_type.id) == 32
+
+
+def is_date64(data_type):
+    """
+    Returns whether the `data_type` is a date64 type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_date(data_type.id) and bit_width(data_type.id) == 64
+
+
+def is_run_end_encoded(data_type):
+    """
+    Returns whether the `data_type` is a run end encoded type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return data_type.id == Type_RUN_END_ENCODED
+
+
+def is_map(data_type):
+    """
+    Returns whether the `data_type` is a map type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_var_length_list(data_type.id) and not is_list(data_type.id)
+
+
+def is_decimal128(data_type):
+    """
+    Returns whether the `data_type` is a decimal128 type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_decimal(data_type.id) and bit_width(data_type.id) == 128
+
+
+def is_decimal256(data_type):
+    """
+    Returns whether the `data_type` is a decimal256 type.
+
+    Parameters
+    ----------
+    data_type : DataType
+        The data type to check.
+    """
+    return is_decimal(data_type.id) and bit_width(data_type.id) == 256
 
 
 cdef class _ExtensionRegistryNanny(_Weakrefable):
