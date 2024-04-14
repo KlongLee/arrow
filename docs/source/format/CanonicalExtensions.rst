@@ -251,6 +251,15 @@ Variable shape tensor
    Values inside each **data** tensor element are stored in row-major/C-contiguous
    order according to the corresponding **shape**.
 
+.. _json_extension:
+
+JSON
+====
+
+* Extension name: `arrow.json`.
+
+* The storage type of the extension is ``StringArray``.
+
 =========================
 Community Extension Types
 =========================
