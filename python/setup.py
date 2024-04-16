@@ -490,7 +490,6 @@ setup(
     },
     use_scm_version={
         'parse': parse_git,
-        'version_scheme': guess_next_dev_version
     },
     tests_require=['pytest', 'pandas', 'hypothesis'],
     test_suite='pyarrow.tests',
