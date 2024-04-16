@@ -122,13 +122,11 @@ void KeyCompare::CompareBinaryColumnToRowHelper(
 }
 
 template <bool use_selection>
-void KeyCompare::CompareBinaryColumnToRow(uint32_t offset_within_row,
-                                          uint32_t num_rows_to_compare,
-                                          const uint16_t* sel_left_maybe_null,
-                                          const uint32_t* left_to_right_map,
-                                          LightContext* ctx, const KeyColumnArray& col,
-                                          const RowTableImpl& rows,
-                                          uint8_t* match_bytevector) {
+void KeyCompare::CompareBinaryColumnToRow(
+    uint32_t offset_within_row, uint32_t num_rows_to_compare,
+    const uint16_t* sel_left_maybe_null, const uint32_t* left_to_right_map,
+    LightContext* ctx, const KeyColumnArray& col, const RowTableImpl& rows,
+    uint8_t* match_bytevector, bool are_cols_in_encoding_order) {
   uint32_t num_processed = 0;
 #if defined(ARROW_HAVE_RUNTIME_AVX2)
   if (ctx->has_avx2()) {
@@ -165,10 +163,11 @@ void KeyCompare::CompareBinaryColumnToRow(uint32_t offset_within_row,
     CompareBinaryColumnToRowHelper<use_selection>(
         offset_within_row, num_processed, num_rows_to_compare, sel_left_maybe_null,
         left_to_right_map, ctx, col, rows, match_bytevector,
-        [](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
-           uint32_t offset_right) {
-          util::CheckAlignment<uint16_t>(left_base);
-          util::CheckAlignment<uint16_t>(right_base + offset_right);
+        [=](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
+            uint32_t offset_right) {
+          util::CheckAlignment<uint16_t>(left_base, are_cols_in_encoding_order);
+          util::CheckAlignment<uint16_t>(right_base + offset_right,
+                                         are_cols_in_encoding_order);
           uint16_t left = reinterpret_cast<const uint16_t*>(left_base)[irow_left];
           uint16_t right = *reinterpret_cast<const uint16_t*>(right_base + offset_right);
           return left == right ? 0xff : 0;
@@ -177,10 +176,11 @@ void KeyCompare::CompareBinaryColumnToRow(uint32_t offset_within_row,
     CompareBinaryColumnToRowHelper<use_selection>(
         offset_within_row, num_processed, num_rows_to_compare, sel_left_maybe_null,
         left_to_right_map, ctx, col, rows, match_bytevector,
-        [](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
-           uint32_t offset_right) {
-          util::CheckAlignment<uint32_t>(left_base);
-          util::CheckAlignment<uint32_t>(right_base + offset_right);
+        [=](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
+            uint32_t offset_right) {
+          util::CheckAlignment<uint32_t>(left_base, are_cols_in_encoding_order);
+          util::CheckAlignment<uint32_t>(right_base + offset_right,
+                                         are_cols_in_encoding_order);
           uint32_t left = reinterpret_cast<const uint32_t*>(left_base)[irow_left];
           uint32_t right = *reinterpret_cast<const uint32_t*>(right_base + offset_right);
           return left == right ? 0xff : 0;
@@ -189,10 +189,11 @@ void KeyCompare::CompareBinaryColumnToRow(uint32_t offset_within_row,
     CompareBinaryColumnToRowHelper<use_selection>(
         offset_within_row, num_processed, num_rows_to_compare, sel_left_maybe_null,
         left_to_right_map, ctx, col, rows, match_bytevector,
-        [](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
-           uint32_t offset_right) {
-          util::CheckAlignment<uint64_t>(left_base);
-          util::CheckAlignment<uint64_t>(right_base + offset_right);
+        [=](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
+            uint32_t offset_right) {
+          util::CheckAlignment<uint64_t>(left_base, are_cols_in_encoding_order);
+          util::CheckAlignment<uint64_t>(right_base + offset_right,
+                                         are_cols_in_encoding_order);
           uint64_t left = reinterpret_cast<const uint64_t*>(left_base)[irow_left];
           uint64_t right = *reinterpret_cast<const uint64_t*>(right_base + offset_right);
           return left == right ? 0xff : 0;
@@ -201,8 +202,8 @@ void KeyCompare::CompareBinaryColumnToRow(uint32_t offset_within_row,
     CompareBinaryColumnToRowHelper<use_selection>(
         offset_within_row, num_processed, num_rows_to_compare, sel_left_maybe_null,
         left_to_right_map, ctx, col, rows, match_bytevector,
-        [&col](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
-               uint32_t offset_right) {
+        [=, &col](const uint8_t* left_base, const uint8_t* right_base, uint32_t irow_left,
+                  uint32_t offset_right) {
           uint32_t length = col.metadata().fixed_length;
 
           // Non-zero length guarantees no underflow
@@ -212,7 +213,8 @@ void KeyCompare::CompareBinaryColumnToRow(uint32_t offset_within_row,
 
           const uint64_t* key_left_ptr =
               reinterpret_cast<const uint64_t*>(left_base + irow_left * length);
-          util::CheckAlignment<uint64_t>(right_base + offset_right);
+          util::CheckAlignment<uint64_t>(right_base + offset_right,
+                                         are_cols_in_encoding_order);
           const uint64_t* key_right_ptr =
               reinterpret_cast<const uint64_t*>(right_base + offset_right);
           uint64_t result_or = 0;
@@ -372,7 +374,8 @@ void KeyCompare::CompareColumnsToRows(
         CompareBinaryColumnToRow<true>(
             offset_within_row, num_rows_to_compare, sel_left_maybe_null,
             left_to_right_map, ctx, col, rows,
-            is_first_column ? match_bytevector_A : match_bytevector_B);
+            is_first_column ? match_bytevector_A : match_bytevector_B,
+            are_cols_in_encoding_order);
         NullUpdateColumnToRow<true>(
             static_cast<uint32_t>(icol), num_rows_to_compare, sel_left_maybe_null,
             left_to_right_map, ctx, col, rows,
@@ -383,7 +386,8 @@ void KeyCompare::CompareColumnsToRows(
         CompareBinaryColumnToRow<false>(
             offset_within_row, num_rows_to_compare, sel_left_maybe_null,
             left_to_right_map, ctx, col, rows,
-            is_first_column ? match_bytevector_A : match_bytevector_B);
+            is_first_column ? match_bytevector_A : match_bytevector_B,
+            are_cols_in_encoding_order);
         NullUpdateColumnToRow<false>(
             static_cast<uint32_t>(icol), num_rows_to_compare, sel_left_maybe_null,
             left_to_right_map, ctx, col, rows,
