@@ -158,12 +158,12 @@ import com.google.protobuf.ProtocolStringList;
 public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
   private static final String DATABASE_URI = "jdbc:derby:target/derbyDB";
   private static final Logger LOGGER = getLogger(FlightSqlExample.class);
-  private static final Calendar DEFAULT_CALENDAR = JdbcToArrowUtils.getUtcCalendar();
+  protected static final Calendar DEFAULT_CALENDAR = JdbcToArrowUtils.getUtcCalendar();
   // ARROW-15315: Use ExecutorService to simulate an async scenario
   private final ExecutorService executorService = Executors.newFixedThreadPool(10);
   private final Location location;
-  private final PoolingDataSource<PoolableConnection> dataSource;
-  private final BufferAllocator rootAllocator = new RootAllocator();
+  protected final PoolingDataSource<PoolableConnection> dataSource;
+  protected final BufferAllocator rootAllocator = new RootAllocator();
   private final Cache<ByteString, StatementContext<PreparedStatement>> preparedStatementLoadingCache;
   private final Cache<ByteString, StatementContext<Statement>> statementLoadingCache;
   private final SqlInfoBuilder sqlInfoBuilder;
@@ -778,7 +778,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
     // Running on another thread
     Future<?> unused = executorService.submit(() -> {
       try {
-        final ByteString preparedStatementHandle = copyFrom(randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+        final ByteString preparedStatementHandle = copyFrom(request.getQuery().getBytes(UTF_8));
         // Ownership of the connection will be passed to the context. Do NOT close!
         final Connection connection = dataSource.getConnection();
         final PreparedStatement preparedStatement = connection.prepareStatement(request.getQuery(),
@@ -882,7 +882,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
             while (binder.next()) {
               preparedStatement.addBatch();
             }
-            int[] recordCounts = preparedStatement.executeBatch();
+            final int[] recordCounts = preparedStatement.executeBatch();
             recordCount = Arrays.stream(recordCounts).sum();
           }
 
@@ -928,6 +928,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
             .toRuntimeException());
         return;
       }
+
       ackStream.onCompleted();
     };
   }
@@ -1280,7 +1281,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
     }
   }
 
-  private <T extends Message> FlightInfo getFlightInfoForSchema(final T request, final FlightDescriptor descriptor,
+  protected <T extends Message> FlightInfo getFlightInfoForSchema(final T request, final FlightDescriptor descriptor,
                                                                 final Schema schema) {
     final Ticket ticket = new Ticket(pack(request).toByteArray());
     // TODO Support multiple endpoints.
