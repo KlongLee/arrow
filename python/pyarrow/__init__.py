@@ -427,3 +427,10 @@ def get_library_dirs():
         append_library_dir(_os.path.dirname(_os.path.abspath(__file__)))
 
     return library_dirs
+
+# On emscripten in browser we need to load the timezones from tzdata 
+# package into where arrow expects them to be, otherwise all time
+# handling will break.
+if _sys.platform == 'emscripten':
+    from ._emscripten_timezones import setup_emscripten_timezone_database
+    setup_emscripten_timezone_database()

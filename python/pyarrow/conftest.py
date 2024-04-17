@@ -19,6 +19,8 @@ import pytest
 import pyarrow as pa
 from pyarrow import Codec
 from pyarrow import fs
+from pyarrow.lib import is_threading_enabled
+import sys
 
 import numpy as np
 
@@ -51,6 +53,8 @@ groups = [
     'slow',
     'requires_testing_data',
     'zstd',
+    'threading',
+    'processes',
 ]
 
 defaults = {
@@ -81,8 +85,15 @@ defaults = {
     'slow': False,
     'snappy': Codec.is_available('snappy'),
     'substrait': False,
+    'threading': is_threading_enabled(),
     'zstd': Codec.is_available('zstd'),
+    'processes': True
 }
+
+if sys.platform == "emscripten":
+    # emscripten doesn't support multiprocessing or gdb
+    defaults['gdb'] = False
+    defaults['processes'] = False
 
 try:
     import cython  # noqa
