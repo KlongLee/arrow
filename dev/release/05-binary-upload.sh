@@ -81,6 +81,7 @@ fi
 : ${UPLOAD_CENTOS:=${UPLOAD_DEFAULT}}
 : ${UPLOAD_DEBIAN:=${UPLOAD_DEFAULT}}
 : ${UPLOAD_DOCS:=${UPLOAD_DEFAULT}}
+: ${UPLOAD_MATLAB:=${UPLOAD_DEFAULT}}
 : ${UPLOAD_NUGET:=${UPLOAD_DEFAULT}}
 : ${UPLOAD_PYTHON:=${UPLOAD_DEFAULT}}
 : ${UPLOAD_R:=${UPLOAD_DEFAULT}}
@@ -144,3 +145,18 @@ docker_run \
     VERBOSE=${VERBOSE:-no} \
     VERSION=${version} \
     YUM_TARGETS=$(IFS=,; echo "${yum_targets[*]}")
+
+# Create a git tag to associate with a GitHub Release that will
+# have the release candidate MLTBX file as an asset. 
+# 
+# Push this tag (e.g. apache-arrow-15.0.2-rc0) to the remote
+# apache/arrow repository to trigger the GitHub Actions Workflow 
+# that creates the GitHub Release and uploads the MLTBX file.
+#
+# See .github/workflows/package.yml for details.
+if [ ${UPLOAD_MATLAB} -gt 0 ]; then
+  release_tag="apache-arrow-${version_with_rc}"
+  tag_message="Release candidate: ${version_with_rc}"
+  git tag -a ${release_tag} -m ${tag_message}
+  git push apache ${release_tag}
+fi
