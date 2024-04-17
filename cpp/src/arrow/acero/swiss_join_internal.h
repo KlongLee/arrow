@@ -45,7 +45,7 @@ class RowArrayAccessor {
   // Find the index of this varbinary column within the sequence of all
   // varbinary columns encoded in rows.
   //
-  static int VarbinaryColumnId(const RowTableMetadata& row_metadata, int column_id);
+  static int VarbinaryColumnId(const RowTableMetadata* row_metadata, int column_id);
 
   // Calculate how many rows to skip from the tail of the
   // sequence of selected rows, such that the total size of skipped rows is at
@@ -111,7 +111,8 @@ struct RowArray {
   RowArray() : is_initialized_(false) {}
 
   Status InitIfNeeded(MemoryPool* pool, const ExecBatch& batch);
-  Status InitIfNeeded(MemoryPool* pool, const RowTableMetadata& row_metadata);
+  Status InitIfNeeded(MemoryPool* pool,
+                      const std::vector<KeyColumnMetadata>& column_metadatas);
 
   Status AppendBatchSelection(MemoryPool* pool, const ExecBatch& batch, int begin_row_id,
                               int end_row_id, int num_row_ids, const uint16_t* row_ids,
@@ -139,6 +140,7 @@ struct RowArray {
   RowTableEncoder encoder_;
   RowTableImpl rows_;
   RowTableImpl rows_temp_;
+  RowTableMetadata row_metadata_;
 };
 
 // Implements concatenating multiple row arrays into a single one, using
